@@ -1,0 +1,31 @@
+﻿# Docker Compose файл для настройки и запуска контейнеров для проекта MongoTracker.Sample.
+# Включает в себя контейнеры для MongoDB, Mongo Express и самого приложения MongoTracker.Sample.
+
+services:
+  
+  # Сервис для приложения MongoTracker.Sample
+  mongotracker.sample:
+    image: mongotracker.sample # Имя образа для контейнера
+    build:
+      context: . # Контекст сборки (текущая директория)
+      dockerfile: MongoTracker.Sample/Dockerfile # Путь к Dockerfile для сборки образа
+    depends_on:
+      - mongotracker.mongo # Зависимость от сервиса MongoDB (ждем запуска MongoDB перед запуском приложения)
+
+  # Сервис для MongoDB
+  mongotracker.mongo:
+    image: mongo:latest # Используем последний официальный образ MongoDB
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root # Имя пользователя для администратора MongoDB
+      MONGO_INITDB_ROOT_PASSWORD: example # Пароль для администратора MongoDB
+
+  # Сервис для Mongo Express (веб-интерфейс для управления MongoDB)
+  mongotracker.mongo-express:
+    image: mongo-express:latest # Используем последний официальный образ Mongo Express
+    ports:
+      - "8081:8081" # Пробрасываем порт 8081 для доступа к Mongo Express с хоста
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongotracker.mongo:27017/admin # URL для подключения к MongoDB
+      ME_CONFIG_BASICAUTH: "false" # Отключаем аутентификацию в веб-интерфейсе
+    depends_on:
+      - mongotracker.mongo # Зависимость от сервиса MongoDB (ждем запуска MongoDB перед запуском Mongo Express)
