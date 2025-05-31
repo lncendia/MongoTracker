@@ -185,46 +185,112 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
 
     /// <summary>
     /// Отслеживает изменения коллекции и возвращает новый или обновленный экземпляр TrackedCollection.
+    /// Реализует механизм отслеживания изменений для коллекций в рамках единицы работы.
     /// </summary>
     /// <typeparam name="TV">Тип элементов коллекции.</typeparam>
     /// <typeparam name="T">Тип модели, к которой относится коллекция.</typeparam>
-    /// <param name="propertyName">Имя свойства.</param>
-    /// <param name="currentValue">Текущий экземпляр TrackedCollection.</param>
-    /// <param name="newValue">Новая коллекция.</param>
-    /// <returns>Новый или обновленный экземпляр TrackedCollection.</returns>
-    protected TrackedCollection<TV, T> TrackCollection<TV>(string propertyName, TrackedCollection<TV, T>? currentValue,
-        List<TV> newValue)
+    /// <param name="propertyName">Имя отслеживаемого свойства.</param>
+    /// <param name="currentValue">Текущее отслеживаемое состояние коллекции.</param>
+    /// <param name="value">Новое значение коллекции.</param>
+    /// <returns>Обновленный экземпляр TrackedCollection или null, если коллекция была удалена.</returns>
+    protected TrackedCollection<TV, T>? TrackCollection<TV>(
+        string propertyName,
+        TrackedCollection<TV, T>? currentValue,
+        List<TV>? value)
     {
-        // Если текущий экземпляр TrackedCollection равен null, создаем новый.
-        if (currentValue == null) return new TrackedCollection<TV, T>(newValue, propertyName);
+        // Сценарий 1: Добавление новой коллекции
+        if (currentValue == null && value != null)
+        {
+            // Фиксируем добавление новой коллекции в журнале изменений
+            _changes[propertyName] = value;
 
-        // Обновляем текущую коллекцию в существующем экземпляре TrackedCollection.
-        currentValue.Collection = newValue;
+            // Отмечаем свойство как полностью новое для последующей обработки
+            AddedValueObjects.Add(propertyName);
 
-        // Возвращаем обновленный экземпляр TrackedCollection.
-        return currentValue;
+            // Создаем новую отслеживаемую коллекцию
+            return new TrackedCollection<TV, T>
+            {
+                Collection = value // Инициализируем коллекцию новыми значениями
+            };
+        }
+
+        // Сценарий 2: Удаление существующей коллекции
+        if (currentValue != null && value == null)
+        {
+            // Фиксируем удаление коллекции (записываем null)
+            _changes[propertyName] = value;
+
+            // Возвращаем null, указывая на удаление коллекции
+            return null;
+        }
+
+        // Сценарий 3: Обновление существующей коллекции
+        if (currentValue != null && value != null)
+        {
+            // Обновляем содержимое отслеживаемой коллекции
+            currentValue.Collection = value;
+
+            // Возвращаем обновленный экземпляр
+            return currentValue;
+        }
+
+        // Сценарий 4: Нет изменений (оба значения null)
+        return null;
     }
 
     /// <summary>
-    /// Отслеживает изменения коллекции объектов и возвращает новый или обновленный экземпляр TrackedObjectCollection.
+    /// Отслеживает изменения коллекции объектов-значений и возвращает новый или обновленный экземпляр TrackedObjectCollection.
+    /// Специализированная версия для работы с наследниками UpdatedValueObject.
     /// </summary>
     /// <typeparam name="TV">Тип элементов коллекции (должен быть наследником UpdatedValueObject).</typeparam>
     /// <typeparam name="T">Тип модели, к которой относится коллекция.</typeparam>
-    /// <param name="propertyName">Имя свойства.</param>
-    /// <param name="currentValue">Текущий экземпляр TrackedObjectCollection.</param>
-    /// <param name="newValue">Новая коллекция.</param>
-    /// <returns>Новый или обновленный экземпляр TrackedObjectCollection.</returns>
-    protected TrackedValueObjectCollection<TV, T> TrackValueObjectCollection<TV>(string propertyName,
-        TrackedValueObjectCollection<TV, T>? currentValue, List<TV> newValue) where TV : UpdatedValueObject<T>
+    /// <param name="propertyName">Имя отслеживаемого свойства.</param>
+    /// <param name="currentValue">Текущее отслеживаемое состояние коллекции.</param>
+    /// <param name="value">Новое значение коллекции.</param>
+    /// <returns>Обновленный экземпляр TrackedObjectCollection или null, если коллекция была удалена.</returns>
+    protected TrackedValueObjectCollection<TV, T>? TrackValueObjectCollection<TV>(
+        string propertyName,
+        TrackedValueObjectCollection<TV, T>? currentValue,
+        List<TV>? value) where TV : UpdatedValueObject<T>
     {
-        // Если текущий экземпляр TrackedObjectCollection равен null, создаем новый.
-        if (currentValue == null) return new TrackedValueObjectCollection<TV, T>(newValue, propertyName);
+        // Сценарий 1: Добавление новой коллекции объектов-значений
+        if (currentValue == null && value != null)
+        {
+            // Фиксируем добавление в журнал изменений
+            _changes[propertyName] = value;
 
-        // Обновляем текущую коллекцию в существующем экземпляре TrackedObjectCollection.
-        currentValue.Collection = newValue;
+            // Отмечаем свойство как полностью новое
+            AddedValueObjects.Add(propertyName);
 
-        // Возвращаем обновленный экземпляр TrackedObjectCollection.
-        return currentValue;
+            // Создаем новую отслеживаемую коллекцию объектов-значений
+            return new TrackedValueObjectCollection<TV, T>
+            {
+                Collection = value // Инициализируем коллекцию новыми значениями
+            };
+        }
+
+        // Сценарий 2: Удаление существующей коллекции
+        if (currentValue != null && value == null)
+        {
+            // Фиксируем удаление (записываем null)
+            _changes[propertyName] = value;
+
+            // Возвращаем null, указывая на удаление
+            return null;
+        }
+
+        // Сценарий 3: Обновление существующей коллекции
+        if (currentValue != null && value != null)
+        {
+            // Обновляем содержимое отслеживаемой коллекции
+            currentValue.Collection = value;
+
+            // Возвращаем обновленный экземпляр
+            return currentValue;
+        }
+
+        // Сценарий 4: Нет изменений (оба значения null)
+        return null;
     }
 
     /// <summary>

@@ -15,6 +15,8 @@ services:
   # Сервис для MongoDB
   mongotracker.mongo:
     image: mongo:latest # Используем последний официальный образ MongoDB
+    ports:
+      - "27017:27017" # Пробрасываем порт 27017 для доступа к Mongo с хоста
     environment:
       MONGO_INITDB_ROOT_USERNAME: root # Имя пользователя для администратора MongoDB
       MONGO_INITDB_ROOT_PASSWORD: example # Пароль для администратора MongoDB

@@ -11,15 +11,18 @@ namespace MongoTracker.Entities;
 /// Это позволит корректно сравнивать объекты-значения и уменьшить количество лишних перезаписей.
 /// </typeparam>
 /// <typeparam name="TP">Тип родительской сущности, к которой относится коллекция.</typeparam>
-/// <param name="originalCollection">Исходная коллекция объектов-значений, с которой сравниваются изменения.</param>
-/// <param name="parentPropertyName">Имя свойства родительской сущности, в котором хранится коллекция.</param>
-public class TrackedValueObjectCollection<TC, TP>(List<TC> originalCollection, string parentPropertyName)
-    where TC : UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
+public class TrackedValueObjectCollection<TC, TP> where TC : UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
 {
     /// <summary>
-    /// Текущая коллекция объектов-значений, которая может быть изменена.
+    /// Исходная (оригинальная) коллекция объектов-значений, хранящая состояние до изменений.
+    /// Используется для сравнения с текущей коллекцией для определения изменений.
     /// </summary>
-    public List<TC> Collection { get; set; } = [..originalCollection]; // Инициализация текущей коллекции копией исходной.
+    private List<TC> _originalCollection = [];
+
+    /// <summary>
+    /// Текущая коллекция, которая может быть изменена.
+    /// </summary>
+    public List<TC> Collection { get; set; } = [];
 
     /// <summary>
     /// Флаг, указывающий, была ли коллекция изменена.
@@ -29,13 +32,13 @@ public class TrackedValueObjectCollection<TC, TP>(List<TC> originalCollection, s
         get
         {
             // Проверяем, есть ли элементы в текущей коллекции, которых нет в исходной.
-            if (Collection.Except(originalCollection).Any()) return true;
+            if (Collection.Except(_originalCollection).Any()) return true;
 
             // Проверяем, есть ли элементы в исходной коллекции, которых нет в текущей.
-            if (originalCollection.Except(Collection).Any()) return true;
+            if (_originalCollection.Except(Collection).Any()) return true;
 
             // Проверяем, были ли изменены элементы, которые есть в обеих коллекциях.
-            if (originalCollection.Intersect(Collection).Any(e => e.IsModified)) return true;
+            if (_originalCollection.Intersect(Collection).Any(e => e.IsModified)) return true;
 
             // Если изменений нет, возвращаем false.
             return false;
@@ -48,7 +51,10 @@ public class TrackedValueObjectCollection<TC, TP>(List<TC> originalCollection, s
     public void ClearChanges()
     {
         // Очищаем изменения для всех объектов-значений, которые есть в обеих коллекциях.
-        foreach (var updatedValueObject in originalCollection.Intersect(Collection)) updatedValueObject.ClearChanges();
+        foreach (var updatedValueObject in Collection) updatedValueObject.ClearChanges();
+
+        // Копирование текущей коллекции в оригинальную с использованием spread-оператора
+        _originalCollection = [..Collection];
     }
 
     /// <summary>
@@ -56,57 +62,70 @@ public class TrackedValueObjectCollection<TC, TP>(List<TC> originalCollection, s
     /// Метод анализирует различия между текущей коллекцией и исходной (оригинальной) коллекцией,
     /// а также проверяет, были ли изменены элементы, которые присутствуют в обеих коллекциях.
     /// </summary>
+    /// <param name="parentPropertyName">Имя родительского свойства (для вложенных документов)</param>
+    /// <param name="propertyName">Имя обновляемого свойства коллекции</param>
+    /// <param name="blockedParentPropertyNames">Список заблокированных свойств, которые нельзя обновлять частично</param>
     /// <returns>
     /// Определение обновления для MongoDB. Возвращает <c>null</c>, если изменений нет.
     /// </returns>
-    public UpdateDefinition<TP>? GetUpdateDefinition()
+    public UpdateDefinition<TP>? GetUpdateDefinition(
+        string? parentPropertyName,
+        string propertyName,
+        IReadOnlyCollection<string> blockedParentPropertyNames)
     {
+        // Если имя родительского свойства содержится в blockedParentPropertyNames,
+        // возвращаем null, так как это свойство не должно быть обновлено, а этот объект будет записан целиком.
+        if (blockedParentPropertyNames.Contains(propertyName)) return null;
+
+        // Формирование полного имени свойства (включая родительские свойства)
+        var collectionFullName = Combine(parentPropertyName, propertyName);
+
         // Создаем builder для построения определения обновления.
         var updateBuilder = Builders<TP>.Update;
 
         // Проверяем, есть ли элементы в текущей коллекции, которых нет в исходной.
         // Это означает, что в коллекцию были добавлены новые элементы.
-        var someAdded = Collection.Except(originalCollection).Any();
+        var someAdded = Collection.Except(_originalCollection).Any();
 
         // Проверяем, есть ли элементы в исходной коллекции, которых нет в текущей.
         // Это означает, что из коллекции были удалены элементы.
-        var someRemoved = originalCollection.Except(Collection).Any();
+        var someRemoved = _originalCollection.Except(Collection).Any();
 
         // Проверяем, есть ли элементы, которые присутствуют в обеих коллекциях и были изменены.
         // Это полезно для случаев, когда элементы коллекции сами по себе могут изменяться.
-        var someModified = originalCollection.Intersect(Collection).Any(e => e.IsModified);
+        var someModified = _originalCollection.Intersect(Collection).Any(e => e.IsModified);
 
         // Если есть только добавленные элементы и нет удаленных или измененных.
         if (someAdded && !someRemoved && !someModified)
         {
             // Определяем элементы, которые были добавлены в текущую коллекцию.
-            var addedItems = Collection.Except(originalCollection);
+            var addedItems = Collection.Except(_originalCollection);
 
             // Создаем операцию PushEach для добавления новых элементов в коллекцию.
-            return updateBuilder.PushEach(parentPropertyName, addedItems);
+            return updateBuilder.PushEach(collectionFullName, addedItems);
         }
 
         // Если есть только удаленные элементы и нет добавленных или измененных.
         if (someRemoved && !someAdded && !someModified)
         {
             // Определяем элементы, которые были удалены из текущей коллекции.
-            var removedItems = originalCollection.Except(Collection).ToArray();
+            var removedItems = _originalCollection.Except(Collection).ToArray();
 
             // Создаем операцию PullAll для удаления элементов из коллекции.
-            return updateBuilder.PullAll(parentPropertyName, removedItems);
+            return updateBuilder.PullAll(collectionFullName, removedItems);
         }
 
         // Если есть только измененные элементы и нет добавленных или удаленных.
         if (someModified && !someAdded && !someRemoved)
         {
             // Определяем элементы, которые есть в обеих коллекциях и были изменены.
-            var updatedItems = originalCollection.Intersect(Collection)
+            var updatedItems = _originalCollection.Intersect(Collection)
 
                 // Фильтруем только измененные элементы.
                 .Where(e => e.IsModified)
 
                 // Получаем определение обновления для каждого измененного элемента.
-                .Select((item, index) => item.GetUpdateDefinition(parentPropertyName, index.ToString(), []));
+                .Select((item, index) => item.GetUpdateDefinition(collectionFullName, index.ToString(), []));
 
             // Объединяем все определения обновления для измененных элементов в одно.
             return updateBuilder.Combine(updatedItems);
@@ -116,10 +135,30 @@ public class TrackedValueObjectCollection<TC, TP>(List<TC> originalCollection, s
         if (someAdded || someRemoved || someModified)
         {
             // В этом случае проще всего полностью заменить коллекцию новым значением.
-            return updateBuilder.Set(parentPropertyName, Collection);
+            return updateBuilder.Set(collectionFullName, Collection);
         }
 
         // Если изменений в коллекции нет, возвращаем null.
         return null;
+    }
+
+    /// <summary>
+    /// Объединяет имя родительского свойства и имя текущего свойства для формирования пути в MongoDB.
+    /// Если имя родительского свойства отсутствует (null), возвращается только имя текущего свойства.
+    /// </summary>
+    /// <param name="parentPropertyName">Имя родительского свойства. Может быть null, если свойство не вложено.</param>
+    /// <param name="propertyName">Имя текущего свойства.</param>
+    /// <returns>
+    /// Строка, представляющая путь к свойству в MongoDB.
+    /// Например, если parentPropertyName = "Parent", а propertyName = "Child", метод вернет "Parent.Child".
+    /// Если parentPropertyName = null, метод вернет "Child".
+    /// </returns>
+    private static string Combine(string? parentPropertyName, string propertyName)
+    {
+        // Если имя родительского свойства отсутствует, возвращаем только имя текущего свойства.
+        if (parentPropertyName == null) return propertyName;
+
+        // Возвращаем объединенный путь, разделяя имена свойств точкой.
+        return $"{parentPropertyName}.{propertyName}";
     }
 }

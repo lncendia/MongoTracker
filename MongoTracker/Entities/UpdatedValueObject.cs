@@ -29,7 +29,7 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
     /// Используется для хранения изменений типов-значений (например, int, DateTime, bool) без выполнения боксингa.
     /// </summary>
     private readonly Dictionary<string, ValueType> _structChanges = new();
-    
+
     /// <summary>
     /// Коллекция имен свойств, которые представляют добавленные (а не измененные) объекты-значения.
     /// Если объект-значение был добавлен (например, из null стал не null), его нужно обновить целиком,
@@ -99,7 +99,7 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
         {
             // Записываем новое значение в словарь изменений.
             _changes[propertyName] = value;
-            
+
             // Добавляем имя свойства в коллекцию AddedValueObjects,
             // чтобы указать, что этот объект нужно обновить целиком.
             AddedValueObjects.Add(propertyName);
@@ -117,49 +117,114 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
         return value;
     }
 
-
     /// <summary>
     /// Отслеживает изменения коллекции и возвращает новый или обновленный экземпляр TrackedCollection.
+    /// Реализует механизм отслеживания изменений для коллекций в рамках единицы работы.
     /// </summary>
     /// <typeparam name="TV">Тип элементов коллекции.</typeparam>
-    /// <typeparam name="TP">Тип родительской модели, к которой относится коллекция.</typeparam>
-    /// <param name="propertyName">Имя свойства.</param>
-    /// <param name="currentValue">Текущий экземпляр TrackedCollection.</param>
-    /// <param name="newValue">Новая коллекция.</param>
-    /// <returns>Новый или обновленный экземпляр TrackedCollection.</returns>
-    protected TrackedCollection<TV, TP> TrackCollection<TV>(string propertyName,
-        TrackedCollection<TV, TP>? currentValue, List<TV> newValue)
+    /// <typeparam name="TP">Тип модели, к которой относится коллекция.</typeparam>
+    /// <param name="propertyName">Имя отслеживаемого свойства.</param>
+    /// <param name="currentValue">Текущее отслеживаемое состояние коллекции.</param>
+    /// <param name="value">Новое значение коллекции.</param>
+    /// <returns>Обновленный экземпляр TrackedCollection или null, если коллекция была удалена.</returns>
+    protected TrackedCollection<TV, TP>? TrackCollection<TV>(
+        string propertyName,
+        TrackedCollection<TV, TP>? currentValue,
+        List<TV>? value)
     {
-        // Если текущий экземпляр TrackedCollection равен null, создаем новый.
-        if (currentValue == null) return new TrackedCollection<TV, TP>(newValue, propertyName);
+        // Сценарий 1: Добавление новой коллекции
+        if (currentValue == null && value != null)
+        {
+            // Фиксируем добавление новой коллекции в журнале изменений
+            _changes[propertyName] = value;
 
-        // Обновляем текущую коллекцию в существующем экземпляре TrackedCollection.
-        currentValue.Collection = newValue;
+            // Отмечаем свойство как полностью новое для последующей обработки
+            AddedValueObjects.Add(propertyName);
 
-        // Возвращаем обновленный экземпляр TrackedCollection.
-        return currentValue;
+            // Создаем новую отслеживаемую коллекцию
+            return new TrackedCollection<TV, TP>
+            {
+                Collection = value // Инициализируем коллекцию новыми значениями
+            };
+        }
+
+        // Сценарий 2: Удаление существующей коллекции
+        if (currentValue != null && value == null)
+        {
+            // Фиксируем удаление коллекции (записываем null)
+            _changes[propertyName] = value;
+
+            // Возвращаем null, указывая на удаление коллекции
+            return null;
+        }
+
+        // Сценарий 3: Обновление существующей коллекции
+        if (currentValue != null && value != null)
+        {
+            // Обновляем содержимое отслеживаемой коллекции
+            currentValue.Collection = value;
+
+            // Возвращаем обновленный экземпляр
+            return currentValue;
+        }
+
+        // Сценарий 4: Нет изменений (оба значения null)
+        return null;
     }
 
     /// <summary>
-    /// Отслеживает изменения коллекции объектов и возвращает новый или обновленный экземпляр TrackedObjectCollection.
+    /// Отслеживает изменения коллекции объектов-значений и возвращает новый или обновленный экземпляр TrackedObjectCollection.
+    /// Специализированная версия для работы с наследниками UpdatedValueObject.
     /// </summary>
     /// <typeparam name="TV">Тип элементов коллекции (должен быть наследником UpdatedValueObject).</typeparam>
     /// <typeparam name="TP">Тип модели, к которой относится коллекция.</typeparam>
-    /// <param name="propertyName">Имя свойства.</param>
-    /// <param name="currentValue">Текущий экземпляр TrackedObjectCollection.</param>
-    /// <param name="newValue">Новая коллекция.</param>
-    /// <returns>Новый или обновленный экземпляр TrackedObjectCollection.</returns>
-    protected TrackedValueObjectCollection<TV, TP> TrackValueObjectCollection<TV>(string propertyName,
-        TrackedValueObjectCollection<TV, TP>? currentValue, List<TV> newValue) where TV : UpdatedValueObject<TP>
+    /// <param name="propertyName">Имя отслеживаемого свойства.</param>
+    /// <param name="currentValue">Текущее отслеживаемое состояние коллекции.</param>
+    /// <param name="value">Новое значение коллекции.</param>
+    /// <returns>Обновленный экземпляр TrackedObjectCollection или null, если коллекция была удалена.</returns>
+    protected TrackedValueObjectCollection<TV, TP>? TrackValueObjectCollection<TV>(
+        string propertyName,
+        TrackedValueObjectCollection<TV, TP>? currentValue,
+        List<TV>? value) where TV : UpdatedValueObject<TP>
     {
-        // Если текущий экземпляр TrackedObjectCollection равен null, создаем новый.
-        if (currentValue == null) return new TrackedValueObjectCollection<TV, TP>(newValue, propertyName);
+        // Сценарий 1: Добавление новой коллекции объектов-значений
+        if (currentValue == null && value != null)
+        {
+            // Фиксируем добавление в журнал изменений
+            _changes[propertyName] = value;
 
-        // Обновляем текущую коллекцию в существующем экземпляре TrackedObjectCollection.
-        currentValue.Collection = newValue;
+            // Отмечаем свойство как полностью новое
+            AddedValueObjects.Add(propertyName);
 
-        // Возвращаем обновленный экземпляр TrackedObjectCollection.
-        return currentValue;
+            // Создаем новую отслеживаемую коллекцию объектов-значений
+            return new TrackedValueObjectCollection<TV, TP>
+            {
+                Collection = value // Инициализируем коллекцию новыми значениями
+            };
+        }
+
+        // Сценарий 2: Удаление существующей коллекции
+        if (currentValue != null && value == null)
+        {
+            // Фиксируем удаление (записываем null)
+            _changes[propertyName] = value;
+
+            // Возвращаем null, указывая на удаление
+            return null;
+        }
+
+        // Сценарий 3: Обновление существующей коллекции
+        if (currentValue != null && value != null)
+        {
+            // Обновляем содержимое отслеживаемой коллекции
+            currentValue.Collection = value;
+
+            // Возвращаем обновленный экземпляр
+            return currentValue;
+        }
+
+        // Сценарий 4: Нет изменений (оба значения null)
+        return null;
     }
 
     /// <summary>
@@ -176,7 +241,7 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
         // Очищаем словарь изменений для типов-значений (value types).
         // Все изменения, связанные с типами-значениями (например, int, DateTime), удаляются.
         _structChanges.Clear();
-        
+
         // Очищаем коллекцию имен свойств, которые представляют добавленные (а не измененные) объекты-значения.
         AddedValueObjects.Clear();
     }
@@ -185,12 +250,12 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
     /// Возвращает определение обновления для MongoDB на основе изменений в сущности.
     /// Если свойство было добавлено, оно не включается в определение обновления, так как должно быть обновлено целиком.
     /// </summary>
-    /// <param name="parentPropertyName"></param>
-    /// <param name="propertyName"></param>
-    /// <param name="blockedParentPropertyNames">Коллекция имен свойств, которые не должны быть обновлены.</param>
+    /// <param name="parentPropertyName">Имя родительского свойства (для вложенных документов)</param>
+    /// <param name="propertyName">Имя обновляемого свойства коллекции</param>
+    /// <param name="blockedParentPropertyNames">Список заблокированных свойств, которые нельзя обновлять частично</param>
     /// <returns>Определение обновления для MongoDB или <c>null</c>, если изменений нет.</returns>
     public virtual UpdateDefinition<TP>? GetUpdateDefinition(string? parentPropertyName, string propertyName,
-        IEnumerable<string> blockedParentPropertyNames)
+        IReadOnlyCollection<string> blockedParentPropertyNames)
     {
         // Если имя родительского свойства содержится в blockedParentPropertyNames,
         // возвращаем null, так как это свойство не должно быть обновлено, а этот объект будет записан целиком.
@@ -204,12 +269,13 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
         var updates = _changes
 
             // Создаем операцию Set для каждого изменения.
-            .Select(change => updateBuilder.Set($"{Combine(parentPropertyName,propertyName)}.{change.Key}", change.Value))
+            .Select(change =>
+                updateBuilder.Set($"{Combine(parentPropertyName, propertyName)}.{change.Key}", change.Value))
 
             // Добавляем операции Set для изменений из словаря _structChanges.
             // _structChanges содержит типы-значения (value types), чтобы избежать боксингa.
             .Concat(_structChanges.Select(change =>
-                updateBuilder.Set($"{Combine(parentPropertyName,propertyName)}.{change.Key}", change.Value)))
+                updateBuilder.Set($"{Combine(parentPropertyName, propertyName)}.{change.Key}", change.Value)))
 
             // Преобразуем результат в массив.
             .ToArray();
@@ -234,7 +300,7 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
     {
         // Если имя родительского свойства отсутствует, возвращаем только имя текущего свойства.
         if (parentPropertyName == null) return propertyName;
-    
+
         // Возвращаем объединенный путь, разделяя имена свойств точкой.
         return $"{parentPropertyName}.{propertyName}";
     }
