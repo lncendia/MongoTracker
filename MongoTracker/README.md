@@ -1,7 +1,5 @@
 # MongoTracker
 
-[![NuGet](https://img.shields.io/nuget/v/Incendia.MongoTracker.svg)](https://www.nuget.org/packages/Incendia.MongoTracker)
-
 **MongoTracker** — это мини-ORM (Object-Relational Mapping) библиотека для работы с MongoDB, которая позволяет автоматически отслеживать изменения в сущностях и выполнять массовые операции записи в базу данных. Библиотека упрощает работу с MongoDB, предоставляя удобный интерфейс для управления сущностями и их изменениями.
 
 ## Основные возможности

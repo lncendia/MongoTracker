@@ -5,10 +5,25 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>13</LangVersion>
+        <PackageId>Incendia.MongoTracker</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Incendia</Authors>
+        <Description>мини-ORM (Object-Relational Mapping) библиотека для работы с MongoDB, которая позволяет автоматически отслеживать изменения в сущностях и выполнять массовые операции записи в базу данных. Библиотека упрощает работу с MongoDB, предоставляя удобный интерфейс для управления сущностями и их изменениями.</Description>
+        <PackageTags>mongodb, orm, nosql, csharp</PackageTags>
+        <RepositoryUrl>https://github.com/lncendia/MongoTracker</RepositoryUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/lncendia/MongoTracker</PackageProjectUrl>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
     </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="MongoDB.Driver" Version="3.4.0"/>
+    </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="MongoDB.Driver" Version="3.4.0" />
+        <None Include="README.md" Pack="true" Visible="false" PackagePath=""/>
+        <None Include="icon.png" Pack="true" Visible="false" PackagePath=""/>
     </ItemGroup>
 
 </Project>

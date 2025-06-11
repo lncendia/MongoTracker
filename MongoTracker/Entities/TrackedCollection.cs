@@ -65,7 +65,7 @@ public class TrackedCollection<TC, TP>
         // возвращаем null, так как это свойство не должно быть обновлено, а этот объект будет записан целиком.
         if (blockedParentPropertyNames.Contains(propertyName)) return null;
         
-        //
+        // Формирование полного имени свойства (включая родительские свойства)
         var collectionFullName = Combine(parentPropertyName, propertyName);
         
         // Создаем builder для построения определения обновления.
