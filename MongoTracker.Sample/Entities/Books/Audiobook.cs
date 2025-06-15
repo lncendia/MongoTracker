@@ -3,9 +3,9 @@
 namespace MongoTracker.Sample.Entities.Books;
 
 /// <summary>
-/// Модель аудиокниги для работы с базой данных MongoDB.
-/// Наследуется от абстрактного класса UpdatedEntity,
-/// который предоставляет функциональность отслеживания изменений и управления состоянием сущности.
+/// Audiobook model for MongoDB database operations.
+/// Inherits from the abstract UpdatedValueObject class,
+/// which provides change tracking and entity state management capabilities.
 /// </summary>
 public class Audiobook : UpdatedValueObject<Book>
 {
@@ -13,20 +13,26 @@ public class Audiobook : UpdatedValueObject<Book>
     private double _duration;
 
     /// <summary>
-    /// Идентификатор автора аудиокниги.
+    /// The unique identifier of the audiobook's author.
     /// </summary>
     public Guid Author
     {
-        get => _author; // Геттер возвращает значение приватного поля _author.
-        set => _author = TrackStructChange(nameof(Author), _author, value); // Сеттер отслеживает изменения и обновляет значение.
+        // Returns the value of the private _authorId field
+        get => _author;
+        
+        // Tracks changes and updates the value
+        set => _author = TrackStructChange(nameof(Author), _author, value);
     }
 
     /// <summary>
-    /// Длительность аудиокниги в минутах.
+    /// The duration of the audiobook in minutes.
     /// </summary>
     public double Duration
     {
-        get => _duration; // Геттер возвращает значение приватного поля _duration.
-        set => _duration = TrackStructChange(nameof(Duration), _duration, value); // Сеттер отслеживает изменения и обновляет значение.
+        // Returns the value of the private _durationInMinutes field
+        get => _duration;
+        
+        // Tracks changes and updates the value
+        set => _duration = TrackStructChange(nameof(Duration), _duration, value);
     }
 }

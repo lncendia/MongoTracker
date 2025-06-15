@@ -4,99 +4,91 @@ using MongoTracker.Entities;
 namespace MongoTracker.Sample.Entities.Books;
 
 /// <summary>
-/// Модель книги для работы с базой данных MongoDB.
-/// Наследуется от абстрактного класса UpdatedEntity,
-/// который предоставляет функциональность отслеживания изменений и управления состоянием сущности.
+/// Book model for working with MongoDB database.
+/// Inherits from the abstract class UpdatedEntity,
+/// which provides change tracking functionality and entity state management.
 /// </summary>
 public class Book : UpdatedEntity<Book>
 {
-    private Guid _id;
     private string _title = null!;
     private Audiobook? _audiobook;
     private TrackedCollection<Guid, Book> _authors = new();
     private TrackedValueObjectCollection<BookChapter, Book> _chapters  = new();
 
     /// <summary>
-    /// Уникальный идентификатор книги.
+    /// Unique book identifier.
     /// </summary>
-    public Guid Id
-    {
-        // Геттер возвращает значение приватного поля _id.
-        get => _id;
-
-        // Сеттер отслеживает изменения и обновляет значение.
-        set => _id = TrackStructChange(nameof(Id), _id, value);
-    }
+    public Guid Id { get; init; }
 
     /// <summary>
-    /// Название книги. Обязательное поле.
+    /// Book title. Required field.
     /// </summary>
     public required string Title
     {
-        // Геттер возвращает значение приватного поля _title.
+        // Getter returns the value of the private field _title.
         get => _title;
 
-        // Сеттер отслеживает изменения и обновляет значение.
+        // Setter tracks changes and updates the value.
         set => _title = TrackChange(nameof(Title), _title, value)!;
     }
 
     /// <summary>
-    /// Данные аудиокниги. Необязательное поле.
+    /// Audiobook data. Optional field.
     /// </summary>
     public Audiobook? Audiobook
     {
-        // Геттер возвращает значение приватного поля _audiobook.
+        // Getter returns the value of the private field _audiobook.
         get => _audiobook;
 
-        // Сеттер отслеживает изменения и обновляет значение.
+        // Setter tracks changes and updates the value.
         set => _audiobook = TrackValueObject(nameof(Audiobook), _audiobook, value)!;
     }
 
     /// <summary>
-    /// Массив идентификаторов авторов книги. По умолчанию пустой массив.
+    /// Array of book author IDs. Empty array by default.
     /// </summary>
     public List<Guid> Authors
     {
-        // Геттер возвращает значение приватного поля _authors или пустой массив, если значение null.
+        // Getter returns the value of the private field _authors or an empty array if the value is null.
         get => _authors.Collection;
 
-        // Сеттер отслеживает изменения и обновляет значение.
+        // Setter tracks changes and updates the value.
         set => _authors = TrackCollection(nameof(Authors), _authors, value)!;
     }
 
     /// <summary>
-    /// Массив глав книги. По умолчанию пустой массив.
+    /// Array of book chapters. Empty array by default.
     /// </summary>
     public List<BookChapter> Chapters
     {
-        // Геттер возвращает значение приватного поля _chapters или пустой массив, если значение null.
+        // Getter returns the value of the private field _chapters or an empty array if the value is null.
         get => _chapters.Collection;
 
-        // Сеттер отслеживает изменения и обновляет значение.
+        // Setter tracks changes and updates the value.
         set => _chapters = TrackValueObjectCollection(nameof(Chapters), _chapters, value)!;
     }
 
     /// <inheritdoc/>
     /// <summary>
-    /// Возвращает определение обновления для MongoDB, объединяя изменения из всех отслеживаемых свойств сущности.
+    /// Returns the MongoDB update definition by combining changes from all tracked entity properties.
     /// </summary>
     public override UpdateDefinition<Book> UpdateDefinition
     {
         get
         {
-            // Получаем базовое определение обновления из родительского класса.
+            // Get base update definition from the parent class.
             var baseUpdateDefinition = base.UpdateDefinition;
 
-            // Получаем определение обновления для аудиокниги, если она была изменена.
+            // Get update definition for audiobook if it was modified.
             var audiobookUpdateDefinition = _audiobook?.GetUpdateDefinition(null, nameof(Audiobook), AddedValueObjects);
 
-            // Получаем определение обновления для списка авторов, если он был изменен.
+            // Get update definition for authors list if it was modified.
             var authorsUpdateDefinition = _authors.GetUpdateDefinition(null, nameof(Authors), AddedValueObjects);
 
-            // Получаем определение обновления для списка глав, если он был изменен.
+            // Get update definition for chapters list if it was modified.
             var chaptersUpdateDefinition = _chapters.GetUpdateDefinition(null, nameof(Chapters), AddedValueObjects);
 
-            // Объединяем все определения обновления в одно и возвращаем результат.
+            // Combine all update definitions into one and return the result.
             return Combine(
                 baseUpdateDefinition,
                 audiobookUpdateDefinition,
@@ -105,39 +97,39 @@ public class Book : UpdatedEntity<Book>
             );
         }
     }
+    
     /// <inheritdoc/>
-
     /// <summary>
-    /// Возвращает текущее состояние сущности, объединяя состояния всех отслеживаемых свойств.
+    /// Returns the current entity state by combining states of all tracked properties.
     /// </summary>
     public override EntityState EntityState => Combine(
         
-        // Состояние аудиокниги, если она была изменена.
+        // Audiobook state if it was modified.
         _audiobook?.IsModified,
 
-        // Состояние списка авторов, если он был изменен.
+        // Authors list state if it was modified.
         _authors.IsModified,
 
-        // Состояние списка глав, если он был изменен.
+        // Chapters list state if it was modified.
         _chapters.IsModified
     );
 
     /// <inheritdoc/>
     /// <summary>
-    /// Очищает все изменения в сущности и всех её отслеживаемых свойствах.
+    /// Clears all changes in the entity and all its tracked properties.
     /// </summary>
     public override void ClearChanges()
     {
-        // Очищаем изменения в базовой сущности.
+        // Clear changes in the base entity.
         base.ClearChanges();
 
-        // Очищаем изменения в аудиокниге, если она существует.
+        // Clear changes in audiobook if it exists.
         _audiobook?.ClearChanges();
 
-        // Очищаем изменения в списке авторов.
+        // Clear changes in authors list.
         _authors.ClearChanges();
 
-        // Очищаем изменения в списке глав.
+        // Clear changes in chapters list.
         _chapters.ClearChanges();
     }
 }

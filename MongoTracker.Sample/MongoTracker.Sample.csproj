@@ -9,13 +9,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\MongoTracker\MongoTracker.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
       <Content Include="..\.dockerignore">
         <Link>.dockerignore</Link>
       </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="MongoTracker.Core" Version="1.0.2" />
     </ItemGroup>
 
 </Project>

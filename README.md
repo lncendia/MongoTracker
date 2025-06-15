@@ -1,117 +1,117 @@
 # MongoTracker
 
-[![NuGet](https://img.shields.io/nuget/v/Incendia.MongoTracker.svg)](https://www.nuget.org/packages/Incendia.MongoTracker)
+[![NuGet](https://img.shields.io/nuget/v/MongoTracker.Core.svg)](https://www.nuget.org/packages/MongoTracker.Core)
 
-**MongoTracker** — это мини-ORM (Object-Relational Mapping) библиотека для работы с MongoDB, которая позволяет автоматически отслеживать изменения в сущностях и выполнять массовые операции записи в базу данных. Библиотека упрощает работу с MongoDB, предоставляя удобный интерфейс для управления сущностями и их изменениями.
+**MongoTracker** is a lightweight ORM (Object-Relational Mapping) library for MongoDB that automatically tracks changes in entities and performs bulk database operations. It simplifies working with MongoDB by providing a convenient interface for managing entities and their changes.
 
-## Основные возможности
+## Key Features
 
-1. **Отслеживание изменений**:
-    - Автоматическое отслеживание изменений в сущностях (добавление, обновление, удаление).
-    - Поддержка массовых операций записи (BulkWrite).
-    - Возможность точечного обновления изменений в сложных документах, включая вложенные объекты и коллекции.
+1. **Change Tracking**:
+   - Automatic tracking of entity changes (insert, update, delete).
+   - Support for bulk write operations (BulkWrite).
+   - Granular updates for complex documents, including nested objects and collections.
 
-2. **Удобный интерфейс**:
-    - Простое добавление сущностей в трекер.
-    - Легкая интеграция с существующими проектами.
+2. **User-Friendly Interface**:
+   - Easy entity registration in the tracker.
+   - Seamless integration with existing projects.
 
-3. **Гибкость**:
-    - Поддержка любых типов сущностей.
-    - Возможность настройки идентификаторов сущностей.
+3. **Flexibility**:
+   - Supports any entity type.
+   - Configurable entity identifiers.
 
-4. **Производительность**:
-    - Минимизация количества запросов к базе данных за счет массовых операций.
-    - Точечное обновление только измененных полей, что снижает нагрузку на базу данных.
+4. **Performance**:
+   - Minimizes database queries through bulk operations.
+   - Updates only modified fields, reducing database load.
 
-## Установка
+## Installation
 
-Для использования MongoTracker в вашем проекте, добавьте его как зависимость через NuGet:
+To use MongoTracker in your project, add it as a NuGet dependency:
 
-```bash
-dotnet add package MongoTracker
-```
+```bash  
+dotnet add package MongoTracker.Core
+```  
 
-## Использование
+## Usage
 
-### 1. Инициализация трекера
+### 1. Initializing the Tracker
 
-Для начала работы с MongoTracker необходимо создать экземпляр трекера, указав тип сущности и способ получения её идентификатора.
+To start using MongoTracker, create an instance of the tracker by specifying the entity type and its identifier.
 
-```csharp
-var mongoTracker = new MongoTracker<Guid, Book>(tk => tk.Id);
-```
+```csharp  
+var mongoTracker = new MongoTracker<Guid, Book>(tk => tk.Id);  
+```  
 
-### 2. Добавление сущностей в трекер
+### 2. Adding Entities to the Tracker
 
-Сущности можно добавлять в трекер по одной или списком. Трекер автоматически отслеживает изменения.
+Entities can be added individually or as a list. The tracker automatically monitors changes.
 
-```csharp
-var book = new Book { Id = Guid.NewGuid(), Title = "Sample Book" };
-mongoTracker.Add(book);
+```csharp  
+var book = new Book { Id = Guid.NewGuid(), Title = "Sample Book" };  
+mongoTracker.Add(book);  
 
-var anotherBook = await mongoDbContext.Books
-    .AsQueryable()
-    .FirstOrDefaultAsync(b => b.Id = idToFind);
-anotherBook = mongoTracker.Track(anotherBook);
-```
+var anotherBook = await mongoDbContext.Books  
+    .AsQueryable()  
+    .FirstOrDefaultAsync(b => b.Id == idToFind);  
+anotherBook = mongoTracker.Track(anotherBook);  
+```  
 
-### 3. Массовая запись изменений
+### 3. Bulk Writing Changes
 
-После добавления сущностей в трекер, изменения можно записать в базу данных одной операцией.
+After adding entities, changes can be written to the database in a single operation.
 
-```csharp
-await mongoDbContext.Books.BulkWriteAsync(mongoTracker.Commit());
-```
+```csharp  
+await mongoDbContext.Books.BulkWriteAsync(mongoTracker.Commit());  
+```  
 
-### 4. Точечное обновление изменений
+### 4. Granular Change Updates
 
-MongoTracker позволяет отслеживать изменения даже в сложных документах, включая вложенные объекты и коллекции. При правильной настройке сущностей, библиотека автоматически определяет изменения и обновляет только те поля, которые были изменены.
+MongoTracker tracks changes even in complex documents, including nested objects and collections. With proper entity configuration, the library detects modifications and updates only the changed fields.
 
-Пример:
+Example:
 
-```csharp
-var book = new Book
-{
-    Id = Guid.NewGuid(),
-    Title = "Sample Book",
-    Chapters = new List<BookChapter>
-    {
-        new BookChapter { Name = "Chapter 1", StartPage = 1, EndPage = 10 }
-    }
-};
+```csharp  
+var book = new Book  
+{  
+    Id = Guid.NewGuid(),  
+    Title = "Sample Book",  
+    Chapters = new List<BookChapter>  
+    {  
+        new BookChapter { Name = "Chapter 1", StartPage = 1, EndPage = 10 }  
+    }  
+};  
 
-mongoTracker.Add(book);
+mongoTracker.Add(book);  
 
-// Изменяем название главы
-book.Chapters[0].Name = "Updated Chapter 1";
+// Modify the chapter name  
+book.Chapters[0].Name = "Updated Chapter 1";  
 
-// Трекер автоматически отследит изменение и обновит только поле Name в коллекции Chapters.
-await mongoDbContext.Books.BulkWriteAsync(mongoTracker.Commit());
-```
+// The tracker detects the change and updates only the 'Name' field in the 'Chapters' collection.  
+await mongoDbContext.Books.BulkWriteAsync(mongoTracker.Commit());  
+```  
 
-## Пример проекта (MongoTracker.Sample)
+## Sample Project (MongoTracker.Sample)
 
-В репозитории доступен пример проекта `MongoTracker.Sample`, который демонстрирует основные возможности библиотеки. Пример включает:
+The repository includes a sample project, `MongoTracker.Sample`, demonstrating the library's core features. The example covers:
 
-1. **Инициализацию базы данных**:
-    - Создание коллекций авторов и книг.
-    - Заполнение базы данных тестовыми данными.
+1. **Database Initialization**:
+   - Creating collections for authors and books.
+   - Seeding the database with test data.
 
-2. **Отслеживание изменений**:
-    - Добавление, обновление и удаление сущностей.
-    - Массовая запись изменений в базу данных.
+2. **Change Tracking**:
+   - Adding, updating, and deleting entities.
+   - Bulk writing changes to the database.
 
-3. **Работу с различными типами сущностей**:
-    - Авторы, книги, главы и аудиокниги.
+3. **Working with Different Entity Types**:
+   - Authors, books, chapters, and audiobooks.
 
-## Лицензия
+## License
 
-MongoTracker распространяется под лицензией MIT.
+MongoTracker is distributed under the MIT License.
 
-## Обратная связь
+## Feedback
 
-Если у вас есть вопросы, предложения или вы обнаружили ошибку, пожалуйста, создайте [issue](https://github.com/your-repo/issues) в репозитории проекта.
+If you have questions, suggestions, or encounter issues, please create an [issue](https://github.com/your-repo/issues) in the project repository.
 
----
+---  
 
-**MongoTracker** — это простой и мощный инструмент для работы с MongoDB, который поможет вам эффективно управлять данными в вашем приложении. Попробуйте его в своем проекте и убедитесь в его удобстве и производительности!
+**MongoTracker** is a simple yet powerful tool for MongoDB that helps you efficiently manage data in your application. Try it in your project and experience its convenience and performance!

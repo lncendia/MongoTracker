@@ -6,7 +6,6 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["MongoTracker.Sample/MongoTracker.Sample.csproj", "MongoTracker.Sample/"]
-COPY ["MongoTracker/MongoTracker.csproj", "MongoTracker/"]
 RUN dotnet restore "MongoTracker.Sample/MongoTracker.Sample.csproj"
 COPY . .
 WORKDIR "/src/MongoTracker.Sample"

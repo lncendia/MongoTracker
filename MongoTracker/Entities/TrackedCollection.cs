@@ -3,130 +3,130 @@
 namespace MongoTracker.Entities;
 
 /// <summary>
-/// Класс, представляющий отслеживаемую коллекцию, которая может быть изменена и отслеживает свои изменения.
+/// A class representing a tracked collection that can be modified and tracks its changes.
 /// </summary>
-/// <typeparam name="TC">Тип элементов коллекции.</typeparam>
-/// <typeparam name="TP">Тип родительской сущности, к которой относится коллекция.</typeparam>
+/// <typeparam name="TC">The type of collection elements.</typeparam>
+/// <typeparam name="TP">The type of parent entity to which the collection belongs.</typeparam>
 public class TrackedCollection<TC, TP>
 {
     /// <summary>
-    /// Исходная (оригинальная) коллекция объектов-значений, хранящая состояние до изменений.
-    /// Используется для сравнения с текущей коллекцией для определения изменений.
+    /// The original collection of value objects storing the state before changes.
+    /// Used for comparison with the current collection to detect changes.
     /// </summary>
     private List<TC> _originalCollection = [];
     
     /// <summary>
-    /// Текущая коллекция, которая может быть изменена.
+    /// The current collection that can be modified.
     /// </summary>
     public List<TC> Collection { get; set; } = [];
 
     /// <summary>
-    /// Флаг, указывающий, была ли коллекция изменена.
+    /// A flag indicating whether the collection has been modified.
     /// </summary>
     public bool IsModified
     {
         get
         {
-            // Проверяем, есть ли элементы в текущей коллекции, которых нет в исходной.
+            // Check if there are elements in the current collection that aren't in the original
             if (Collection.Except(_originalCollection).Any()) return true;
 
-            // Проверяем, есть ли элементы в исходной коллекции, которых нет в текущей.
+            // Check if there are elements in the original collection that aren't in the current
             if (_originalCollection.Except(Collection).Any()) return true;
 
-            // Если различий нет, коллекция не изменена.
+            // If no differences found, the collection hasn't been modified
             return false;
         }
     }
     
     /// <summary>
-    /// Очищает все изменения в коллекции и сбрасывает состояние объектов-значений.
+    /// Clears all changes in the collection and resets the state of value objects.
     /// </summary>
     public void ClearChanges()
     {
-        // Копирование текущей коллекции в оригинальную с использованием spread-оператора
+        // Copy the current collection to the original using spread operator
         _originalCollection = [..Collection];
     }
 
     /// <summary>
-    /// Возвращает определение обновления для MongoDB на основе изменений в коллекции.
-    /// Метод анализирует различия между текущей коллекцией и исходной (оригинальной) коллекцией
-    /// и возвращает соответствующее определение обновления для MongoDB.
+    /// Returns a MongoDB update definition based on collection changes.
+    /// The method analyzes differences between the current and original collections
+    /// and returns an appropriate MongoDB update definition.
     /// </summary>
-    /// <param name="parentPropertyName">Имя родительского свойства (для вложенных документов)</param>
-    /// <param name="propertyName">Имя обновляемого свойства коллекции</param>
-    /// <param name="blockedParentPropertyNames">Список заблокированных свойств, которые нельзя обновлять частично</param>
+    /// <param name="parentPropertyName">Parent property name (for nested documents)</param>
+    /// <param name="propertyName">Name of the collection property being updated</param>
+    /// <param name="blockedParentPropertyNames">List of blocked properties that cannot be partially updated</param>
     /// <returns>
-    /// Определение обновления для MongoDB. Возвращает <c>null</c>, если изменений нет.
+    /// MongoDB update definition. Returns <c>null</c> if there are no changes.
     /// </returns>
     public UpdateDefinition<TP>? GetUpdateDefinition(string? parentPropertyName, string propertyName,
         IEnumerable<string> blockedParentPropertyNames)
     {
-        // Если имя родительского свойства содержится в blockedParentPropertyNames,
-        // возвращаем null, так как это свойство не должно быть обновлено, а этот объект будет записан целиком.
+        // If the parent property name is in blockedParentPropertyNames,
+        // return null as this property shouldn't be updated and the object will be written as a whole
         if (blockedParentPropertyNames.Contains(propertyName)) return null;
         
-        // Формирование полного имени свойства (включая родительские свойства)
+        // Form the full property name (including parent properties)
         var collectionFullName = Combine(parentPropertyName, propertyName);
         
-        // Создаем builder для построения определения обновления.
+        // Create a builder for constructing the update definition
         var updateBuilder = Builders<TP>.Update;
 
-        // Проверяем, есть ли элементы в текущей коллекции, которых нет в исходной.
-        // Это означает, что в коллекцию были добавлены новые элементы.
+        // Check if there are elements in the current collection that aren't in the original
+        // This means new elements were added to the collection
         var someAdded = Collection.Except(_originalCollection).Any();
 
-        // Проверяем, есть ли элементы в исходной коллекции, которых нет в текущей.
-        // Это означает, что из коллекции были удалены элементы.
+        // Check if there are elements in the original collection that aren't in the current
+        // This means elements were removed from the collection
         var someRemoved = _originalCollection.Except(Collection).Any();
 
-        // Если есть добавленные элементы и нет удаленных.
+        // If there are added elements and no removed ones
         if (someAdded && !someRemoved)
         {
-            // Определяем элементы, которые были добавлены в текущую коллекцию.
+            // Identify elements that were added to the current collection
             var addedItems = Collection.Except(_originalCollection);
 
-            // Возвращаем операцию PushEach для добавления новых элементов в коллекцию.
+            // Return PushEach operation to add new elements to the collection
             return updateBuilder.PushEach(collectionFullName, addedItems);
         }
 
-        // Если есть удаленные элементы и нет добавленных.
+        // If there are removed elements and no added ones
         if (someRemoved && !someAdded)
         {
-            // Определяем элементы, которые были удалены из текущей коллекции.
+            // Identify elements that were removed from the current collection
             var removedItems = _originalCollection.Except(Collection).ToArray();
 
-            // Возвращаем операцию PullAll для удаления элементов из коллекции.
+            // Return PullAll operation to remove elements from the collection
             return updateBuilder.PullAll(collectionFullName, removedItems);
         }
 
-        // Если есть как добавленные, так и удаленные элементы.
+        // If there are both added and removed elements
         if (someAdded && someRemoved)
         {
-            // В этом случае проще всего полностью заменить коллекцию новым значением.
+            // In this case, it's simpler to completely replace the collection with the new value
             return updateBuilder.Set(collectionFullName, Collection);
         }
 
-        // Если изменений нет, возвращаем null.
+        // If no changes, return null
         return null;
     }
     
     /// <summary>
-    /// Объединяет имя родительского свойства и имя текущего свойства для формирования пути в MongoDB.
-    /// Если имя родительского свойства отсутствует (null), возвращается только имя текущего свойства.
+    /// Combines parent property name and current property name to form a MongoDB path.
+    /// If parent property name is absent (null), returns only the current property name.
     /// </summary>
-    /// <param name="parentPropertyName">Имя родительского свойства. Может быть null, если свойство не вложено.</param>
-    /// <param name="propertyName">Имя текущего свойства.</param>
+    /// <param name="parentPropertyName">Parent property name. Can be null if the property isn't nested.</param>
+    /// <param name="propertyName">Current property name.</param>
     /// <returns>
-    /// Строка, представляющая путь к свойству в MongoDB.
-    /// Например, если parentPropertyName = "Parent", а propertyName = "Child", метод вернет "Parent.Child".
-    /// Если parentPropertyName = null, метод вернет "Child".
+    /// A string representing the property path in MongoDB.
+    /// For example, if parentPropertyName = "Parent" and propertyName = "Child", the method returns "Parent.Child".
+    /// If parentPropertyName = null, the method returns "Child".
     /// </returns>
     private static string Combine(string? parentPropertyName, string propertyName)
     {
-        // Если имя родительского свойства отсутствует, возвращаем только имя текущего свойства.
+        // If parent property name is absent, return only the current property name
         if (parentPropertyName == null) return propertyName;
 
-        // Возвращаем объединенный путь, разделяя имена свойств точкой.
+        // Return the combined path with properties separated by a dot
         return $"{parentPropertyName}.{propertyName}";
     }
 }

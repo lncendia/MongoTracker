@@ -1,27 +1,27 @@
 namespace MongoTracker.Entities;
 
 /// <summary>
-/// Перечисление для представления состояния сущности.
+/// Enumeration representing the state of an entity.
 /// </summary>
 public enum EntityState
 {
     /// <summary>
-    /// Состояние по умолчанию (сущность не была изменена, добавлена или удалена).
+    /// Default state (entity has not been modified, added or deleted).
     /// </summary>
     Default,
 
     /// <summary>
-    /// Сущность была добавлена.
+    /// The entity has been added.
     /// </summary>
     Added,
 
     /// <summary>
-    /// Сущность была изменена.
+    /// The entity has been modified.
     /// </summary>
     Modified,
 
     /// <summary>
-    /// Сущность была удалена.
+    /// The entity has been deleted.
     /// </summary>
     Deleted
 }

@@ -4,18 +4,23 @@ using MongoDB.Driver;
 namespace MongoTracker.Entities;
 
 /// <summary>
-/// Абстрактный класс, представляющий сущность (entity), которая может быть изменена и отслеживает свои изменения.
+/// Abstract class representing an entity that can be modified and tracks its changes.
 /// </summary>
-/// <typeparam name="T">Тип данных, который будет использоваться для этой сущности.</typeparam>
+/// <typeparam name="T">The data type to be used for this entity.</typeparam>
 public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
 {
     /// <summary>
-    /// Время последнего изменения сущности.
+    /// The timestamp of the entity's last modification.
     /// </summary>
     public DateTime LastModified { get; private set; }
+    
+    /// <summary>
+    /// Internal field storing the actual last modified timestamp.
+    /// </summary>
+    private DateTime _lastModifiedInternal;
 
     /// <summary>
-    /// Текущее состояние сущности (Default, Added, Modified, Deleted).
+    /// Current entity state (Default, Added, Modified, Deleted).
     /// </summary>
     [BsonIgnore]
     public virtual EntityState EntityState
@@ -25,347 +30,395 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
     }
 
     /// <summary>
-    /// Словарь для хранения изменений свойств сущности, где значения являются ссылочными типами (reference types) или nullable.
-    /// Ключ — имя свойства, значение — новое значение свойства.
-    /// Используется для хранения изменений объектов, строк и других ссылочных типов.
+    /// Dictionary for tracking changes in reference type or nullable properties.
+    /// Key is property name, value is new property value.
+    /// Used for tracking changes in objects, strings, and other reference types.
     /// </summary>
     private readonly Dictionary<string, object?> _changes = new();
 
     /// <summary>
-    /// Словарь для хранения изменений свойств сущности, где значения являются типами-значениями (value types).
-    /// Ключ — имя свойства, значение — новое значение свойства.
-    /// Используется для хранения изменений типов-значений (например, int, DateTime, bool) без выполнения боксингa.
+    /// Dictionary for tracking changes in value type properties.
+    /// Key is property name, value is new property value.
+    /// Used for tracking changes in value types (e.g., int, DateTime, bool) without boxing.
     /// </summary>
     private readonly Dictionary<string, ValueType> _structChanges = new();
 
     /// <summary>
-    /// Коллекция имен свойств, которые представляют добавленные (а не измененные) объекты-значения.
-    /// Если объект-значение был добавлен (например, из null стал не null), его нужно обновить целиком,
-    /// а не по отдельным свойствам. Это предотвращает конфликты при обновлении в MongoDB.
+    /// Collection of property names representing added (not modified) value objects.
+    /// If a value object was added (e.g., changed from null to non-null), it needs to be updated
+    /// as a whole rather than by individual properties to prevent update conflicts in MongoDB.
     /// </summary>
     protected readonly HashSet<string> AddedValueObjects = [];
 
     /// <summary>
-    /// Текущее состояние сущности (Default, Added, Modified, Deleted).
+    /// Current entity state (Default, Added, Modified, Deleted).
     /// </summary>
     private EntityState _entityStateValue = EntityState.Default;
 
     /// <summary>
-    /// Возвращает определение обновления для MongoDB.
-    /// Это свойство используется для создания запроса обновления в базе данных.
+    /// Returns a MongoDB update definition.
+    /// This property is used to create a database update query.
     /// </summary>
     public virtual UpdateDefinition<T> UpdateDefinition
     {
         get
         {
-            // Если состояние сущности не является "Modified", значит изменений нет и вызывается InvalidOperationException
+            // If entity state isn't "Modified", throw InvalidOperationException as there are no changes
             if (EntityState != EntityState.Modified) throw new InvalidOperationException();
+            
+            // Update the public LastModified property with our internal tracking value
+            // This ensures the entity reflects the most recent modification time
+            LastModified = _lastModifiedInternal;
 
-            // Создаем builder для построения определения обновления.
+            // Record this change in our structural changes dictionary
+            // We track it under the property name for precise change detection
+            // This enables efficient updates and optimistic concurrency checks
+            _structChanges[nameof(LastModified)] = LastModified;
+            
+            // Create builder for constructing update definition
             var updateBuilder = Builders<T>.Update;
 
-            // Для каждого измененного свойства (хранятся в словаре _changes и _structChanges)
-            // создаем операцию Set, которая указывает, какое поле нужно обновить.
+            // For each changed property (stored in _changes and _structChanges dictionaries)
+            // create a Set operation specifying which field to update
             var updates = _changes
 
-                // Создаем операцию Set для каждого изменения в словаре _changes.
-                // _changes содержит ссылочные типы (reference types) или nullable значения.
+                // Create Set operation for each change in _changes dictionary
+                // (_changes contains reference types or nullable values)
                 .Select(change => updateBuilder.Set(change.Key, change.Value))
 
-                // Добавляем операции Set для изменений из словаря _structChanges.
-                // _structChanges содержит типы-значения (value types), чтобы избежать боксингa.
+                // Add Set operations for changes from _structChanges dictionary
+                // (_structChanges contains value types to avoid boxing)
                 .Concat(_structChanges.Select(change => updateBuilder.Set(change.Key, change.Value)))
 
-                // Преобразуем результат в массив для дальнейшего объединения.
+                // Convert to array for subsequent combination
                 .ToArray();
 
-            // Объединяем все операции Set в одно определение обновления.
-            // Это позволяет выполнить все изменения в одном запросе к базе данных.
+            // Combine all Set operations into a single update definition
+            // This allows executing all changes in a single database request
             return updateBuilder.Combine(updates);
         }
     }
 
     /// <summary>
-    /// Отслеживает изменения свойства и возвращает новое значение.
+    /// Tracks property changes and returns the new value.
     /// </summary>
-    /// <typeparam name="TV">Тип значения свойства.</typeparam>
-    /// <param name="propertyName">Имя свойства.</param>
-    /// <param name="currentValue">Текущее значение свойства.</param>
-    /// <param name="value">Новое значение свойства.</param>
-    /// <returns>Новое значение свойства.</returns>
-    protected TV? TrackChange<TV>(string propertyName, TV? currentValue, TV? value)
+    /// <typeparam name="TV">Property value type.</typeparam>
+    /// <param name="propertyName">Property name.</param>
+    /// <param name="currentValue">Current property value.</param>
+    /// <param name="value">New property value.</param>
+    /// <returns>New property value.</returns>
+    protected TV? TrackChange<TV>(string propertyName, TV? currentValue, TV? value) where TV: class
     {
-        // Проверяем, если и текущее значение, и новое значение равны null.
+        // Check if both current and new values are null
         if (currentValue == null && value == null) return value;
 
-        // Проверяем, если текущее значение и новое значение равны (с учетом null).
+        // Check if current and new values are equal (with null consideration)
         if (currentValue?.Equals(value) ?? false) return currentValue;
 
-        // Сохраняем новое значение свойства в словарь изменений.
+        // Store new property value in changes dictionary
         _changes[propertyName] = value;
 
-        // Обновляем время последнего изменения.
-        LastModified = DateTime.UtcNow;
+        // Update last modified timestamp
+        _lastModifiedInternal = DateTime.UtcNow;
 
-        // Добавляем или обновляем время последнего изменения в словаре изменений.
-        _structChanges[nameof(LastModified)] = LastModified;
-
-        // Устанавливаем состояние сущности как "Modified".
+        // Set entity state to "Modified"
         _entityStateValue = EntityState.Modified;
 
-        // Возвращаем новое значение.
+        // Return new value
         return value;
     }
 
     /// <summary>
-    /// Отслеживает изменения свойства для типов-значений (структур) и возвращает новое значение.
+    /// Tracks changes in value type (struct) properties and returns new value.
     /// </summary>
-    /// <typeparam name="TV">Тип значения свойства (структура).</typeparam>
-    /// <param name="propertyName">Имя свойства.</param>
-    /// <param name="currentValue">Текущее значение свойства.</param>
-    /// <param name="value">Новое значение свойства.</param>
-    /// <returns>Новое значение свойства.</returns>
+    /// <typeparam name="TV">Property value type (struct).</typeparam>
+    /// <param name="propertyName">Property name.</param>
+    /// <param name="currentValue">Current property value.</param>
+    /// <param name="value">New property value.</param>
+    /// <returns>New property value.</returns>
     protected TV TrackStructChange<TV>(string propertyName, TV currentValue, TV value) where TV : struct
     {
-        // Проверяем, если текущее значение и новое значение равны.
+        // Check if current and new values are equal
         if (currentValue.Equals(value)) return currentValue;
 
-        // Сохраняем новое значение свойства в словарь изменений.
+        // Store new property value in struct changes dictionary
         _structChanges[propertyName] = value;
 
-        // Обновляем время последнего изменения.
-        LastModified = DateTime.UtcNow;
+        // Update last modified timestamp
+        _lastModifiedInternal = DateTime.UtcNow;
 
-        // Добавляем или обновляем время последнего изменения в словаре изменений.
+        // Add/update last modified timestamp in struct changes dictionary
         _structChanges[nameof(LastModified)] = LastModified;
 
-        // Устанавливаем состояние сущности как "Modified".
+        // Set entity state to "Modified"
         _entityStateValue = EntityState.Modified;
 
-        // Возвращаем новое значение.
+        // Return new value
         return value;
     }
 
     /// <summary>
-    /// Отслеживает изменения объекта-значения (value object) и возвращает новое значение.
-    /// Если объект-значение был добавлен (из null стал не null), он добавляется в коллекцию <see cref="AddedValueObjects"/>.
-    /// Это позволяет обновлять добавленные объекты целиком, а не по отдельным свойствам.
+    /// Tracks value object changes and returns new value.
+    /// If value object was added (changed from null to non-null), it's added to <see cref="AddedValueObjects"/> collection.
+    /// This ensures added objects are updated as a whole rather than by individual properties.
     /// </summary>
-    /// <typeparam name="TV">Тип объекта-значения.</typeparam>
-    /// <param name="propertyName">Имя свойства, которое изменяется.</param>
-    /// <param name="currentValue">Текущее значение объекта-значения.</param>
-    /// <param name="value">Новое значение объекта-значения.</param>
-    /// <returns>Новое значение объекта-значения.</returns>
+    /// <typeparam name="TV">Value object type.</typeparam>
+    /// <param name="propertyName">Property name being changed.</param>
+    /// <param name="currentValue">Current value object.</param>
+    /// <param name="value">New value object.</param>
+    /// <returns>New value object.</returns>
     protected TV? TrackValueObject<TV>(string propertyName, TV? currentValue, TV? value)
         where TV : UpdatedValueObject<T>
     {
-        // Если текущее значение равно null, а новое значение не равно null,
-        // это означает, что объект-значение был добавлен.
+        // If current value is null and new value isn't null,
+        // this means value object was added
         if (currentValue == null && value != null)
         {
-            // Записываем новое значение в словарь изменений.
+            // Update last modified timestamp
+            _lastModifiedInternal = DateTime.UtcNow;
+            
+            // Set entity state to "Modified"
+            _entityStateValue = EntityState.Modified;
+            
+            // Record new value in changes dictionary
             _changes[propertyName] = value;
 
-            // Добавляем имя свойства в коллекцию AddedValueObjects,
-            // чтобы указать, что этот объект нужно обновить целиком.
+            // Add property name to AddedValueObjects collection
+            // to indicate this object should be updated as a whole
             AddedValueObjects.Add(propertyName);
         }
 
-        // Если текущее значение не равно null, а новое значение равно null,
-        // это означает, что объект-значение был удален.
+        // If current value isn't null and new value is null,
+        // this means value object was removed
         else if (currentValue != null && value == null)
         {
-            // Записываем null в словарь изменений.
+            // Update last modified timestamp
+            _lastModifiedInternal = DateTime.UtcNow;
+            
+            // Set entity state to "Modified"
+            _entityStateValue = EntityState.Modified;
+            
+            // Record null in changes dictionary
             _changes[propertyName] = value;
         }
 
-        // Возвращаем новое значение объекта-значения.
+        // Return new value object
         return value;
     }
 
     /// <summary>
-    /// Отслеживает изменения коллекции и возвращает новый или обновленный экземпляр TrackedCollection.
-    /// Реализует механизм отслеживания изменений для коллекций в рамках единицы работы.
+    /// Tracks collection changes and returns new or updated TrackedCollection instance.
+    /// Implements change tracking mechanism for collections within a unit of work.
     /// </summary>
-    /// <typeparam name="TV">Тип элементов коллекции.</typeparam>
-    /// <typeparam name="T">Тип модели, к которой относится коллекция.</typeparam>
-    /// <param name="propertyName">Имя отслеживаемого свойства.</param>
-    /// <param name="currentValue">Текущее отслеживаемое состояние коллекции.</param>
-    /// <param name="value">Новое значение коллекции.</param>
-    /// <returns>Обновленный экземпляр TrackedCollection или null, если коллекция была удалена.</returns>
+    /// <typeparam name="TV">Collection element type.</typeparam>
+    /// <typeparam name="T">Model type the collection belongs to.</typeparam>
+    /// <param name="propertyName">Tracked property name.</param>
+    /// <param name="currentValue">Current tracked collection state.</param>
+    /// <param name="value">New collection value.</param>
+    /// <returns>Updated TrackedCollection instance or null if collection was removed.</returns>
     protected TrackedCollection<TV, T>? TrackCollection<TV>(
         string propertyName,
         TrackedCollection<TV, T>? currentValue,
         List<TV>? value)
     {
-        // Сценарий 1: Добавление новой коллекции
+        // Scenario 1: Adding new collection
         if (currentValue == null && value != null)
         {
-            // Фиксируем добавление новой коллекции в журнале изменений
+            // Update last modified timestamp
+            _lastModifiedInternal = DateTime.UtcNow;
+            
+            // Set entity state to "Modified"
+            _entityStateValue = EntityState.Modified;
+            
+            // Record new collection addition in change log
             _changes[propertyName] = value;
 
-            // Отмечаем свойство как полностью новое для последующей обработки
+            // Mark property as completely new for subsequent processing
             AddedValueObjects.Add(propertyName);
 
-            // Создаем новую отслеживаемую коллекцию
+            // Create new tracked collection
             return new TrackedCollection<TV, T>
             {
-                Collection = value // Инициализируем коллекцию новыми значениями
+                Collection = value // Initialize collection with new values
             };
         }
 
-        // Сценарий 2: Удаление существующей коллекции
+        // Scenario 2: Removing existing collection
         if (currentValue != null && value == null)
         {
-            // Фиксируем удаление коллекции (записываем null)
+            // Update last modified timestamp
+            _lastModifiedInternal = DateTime.UtcNow;
+            
+            // Set entity state to "Modified"
+            _entityStateValue = EntityState.Modified;
+            
+            // Record collection removal (store null)
             _changes[propertyName] = value;
 
-            // Возвращаем null, указывая на удаление коллекции
+            // Return null indicating collection removal
             return null;
         }
 
-        // Сценарий 3: Обновление существующей коллекции
+        // Scenario 3: Updating existing collection
         if (currentValue != null && value != null)
         {
-            // Обновляем содержимое отслеживаемой коллекции
+            // Update last modified timestamp
+            _lastModifiedInternal = DateTime.UtcNow;
+            
+            // Set entity state to "Modified"
+            _entityStateValue = EntityState.Modified;
+            
+            // Update tracked collection contents
             currentValue.Collection = value;
 
-            // Возвращаем обновленный экземпляр
+            // Return updated instance
             return currentValue;
         }
 
-        // Сценарий 4: Нет изменений (оба значения null)
+        // Scenario 4: No changes (both values null)
         return null;
     }
 
     /// <summary>
-    /// Отслеживает изменения коллекции объектов-значений и возвращает новый или обновленный экземпляр TrackedObjectCollection.
-    /// Специализированная версия для работы с наследниками UpdatedValueObject.
+    /// Tracks value object collection changes and returns new or updated TrackedObjectCollection instance.
+    /// Specialized version for working with UpdatedValueObject descendants.
     /// </summary>
-    /// <typeparam name="TV">Тип элементов коллекции (должен быть наследником UpdatedValueObject).</typeparam>
-    /// <typeparam name="T">Тип модели, к которой относится коллекция.</typeparam>
-    /// <param name="propertyName">Имя отслеживаемого свойства.</param>
-    /// <param name="currentValue">Текущее отслеживаемое состояние коллекции.</param>
-    /// <param name="value">Новое значение коллекции.</param>
-    /// <returns>Обновленный экземпляр TrackedObjectCollection или null, если коллекция была удалена.</returns>
+    /// <typeparam name="TV">Collection element type (must inherit UpdatedValueObject).</typeparam>
+    /// <typeparam name="T">Model type the collection belongs to.</typeparam>
+    /// <param name="propertyName">Tracked property name.</param>
+    /// <param name="currentValue">Current tracked collection state.</param>
+    /// <param name="value">New collection value.</param>
+    /// <returns>Updated TrackedObjectCollection instance or null if collection was removed.</returns>
     protected TrackedValueObjectCollection<TV, T>? TrackValueObjectCollection<TV>(
         string propertyName,
         TrackedValueObjectCollection<TV, T>? currentValue,
         List<TV>? value) where TV : UpdatedValueObject<T>
     {
-        // Сценарий 1: Добавление новой коллекции объектов-значений
+        // Scenario 1: Adding new value object collection
         if (currentValue == null && value != null)
         {
-            // Фиксируем добавление в журнал изменений
+            // Update last modified timestamp
+            _lastModifiedInternal = DateTime.UtcNow;
+            
+            // Set entity state to "Modified"
+            _entityStateValue = EntityState.Modified;
+            
+            // Record addition in change log
             _changes[propertyName] = value;
 
-            // Отмечаем свойство как полностью новое
+            // Mark property as completely new
             AddedValueObjects.Add(propertyName);
 
-            // Создаем новую отслеживаемую коллекцию объектов-значений
+            // Create new tracked value object collection
             return new TrackedValueObjectCollection<TV, T>
             {
-                Collection = value // Инициализируем коллекцию новыми значениями
+                Collection = value // Initialize collection with new values
             };
         }
 
-        // Сценарий 2: Удаление существующей коллекции
+        // Scenario 2: Removing existing collection
         if (currentValue != null && value == null)
         {
-            // Фиксируем удаление (записываем null)
+            // Update last modified timestamp
+            _lastModifiedInternal = DateTime.UtcNow;
+            
+            // Set entity state to "Modified"
+            _entityStateValue = EntityState.Modified;
+            
+            // Record removal (store null)
             _changes[propertyName] = value;
 
-            // Возвращаем null, указывая на удаление
+            // Return null indicating removal
             return null;
         }
 
-        // Сценарий 3: Обновление существующей коллекции
+        // Scenario 3: Updating existing collection
         if (currentValue != null && value != null)
         {
-            // Обновляем содержимое отслеживаемой коллекции
+            // Update last modified timestamp
+            _lastModifiedInternal = DateTime.UtcNow;
+            
+            // Set entity state to "Modified"
+            _entityStateValue = EntityState.Modified;
+            
+            // Update tracked collection contents
             currentValue.Collection = value;
 
-            // Возвращаем обновленный экземпляр
+            // Return updated instance
             return currentValue;
         }
 
-        // Сценарий 4: Нет изменений (оба значения null)
+        // Scenario 4: No changes (both values null)
         return null;
     }
 
     /// <summary>
-    /// Очищает все изменения и сбрасывает состояние сущности до начального.
-    /// Этот метод удаляет все отслеживаемые изменения в свойствах сущности
-    /// и сбрасывает её состояние до значения по умолчанию (EntityState.Default).
+    /// Clears all changes and resets entity state to initial.
+    /// This method removes all tracked property changes and resets
+    /// entity state to default (EntityState.Default).
     /// </summary>
     public virtual void ClearChanges()
     {
-        // Сбрасываем состояние сущности до "Default".
-        // Это означает, что сущность больше не считается измененной.
+        // Reset entity state to "Default"
+        // This means entity is no longer considered modified
         _entityStateValue = EntityState.Default;
 
-        // Очищаем словарь изменений для ссылочных типов и nullable значений.
-        // Все изменения, связанные с объектами, строками и другими ссылочными типами, удаляются.
+        // Clear reference type and nullable value changes dictionary
+        // All changes related to objects, strings and other reference types are removed
         _changes.Clear();
 
-        // Очищаем словарь изменений для типов-значений (value types).
-        // Все изменения, связанные с типами-значениями (например, int, DateTime), удаляются.
+        // Clear value type changes dictionary
+        // All changes related to value types (e.g., int, DateTime) are removed
         _structChanges.Clear();
 
-        // Очищаем коллекцию имен свойств, которые представляют добавленные (а не измененные) объекты-значения.
+        // Clear collection of property names representing added value objects
         AddedValueObjects.Clear();
     }
 
     /// <summary>
-    /// Объединяет несколько определений обновления в одно.
+    /// Combines multiple update definitions into one.
     /// </summary>
-    /// <typeparam name="T">Тип документа MongoDB.</typeparam>
-    /// <param name="updates">Массив определений обновления. Если элемент равен null, он игнорируется.</param>
-    /// <returns>Объединенное определение обновления или null, если все элементы массива равны null.</returns>
-    /// <exception cref="ArgumentNullException">Выбрасывается, если массив updates равен null.</exception>
+    /// <typeparam name="T">MongoDB document type.</typeparam>
+    /// <param name="updates">Array of update definitions. Null elements are ignored.</param>
+    /// <returns>Combined update definition or null if all array elements are null.</returns>
     protected static UpdateDefinition<T> Combine(params UpdateDefinition<T>?[] updates)
     {
-        // Фильтруем массив, удаляя все null-значения.
+        // Filter array by removing all null values
         var nonNullUpdates = updates.Where(u => u != null).ToArray();
 
-        // Используем метод Combine из Builders<T>.Update для объединения всех определений обновления.
+        // Use Combine method from Builders<T>.Update to merge all update definitions
         return Builders<T>.Update.Combine(nonNullUpdates);
     }
 
     /// <summary>
-    /// Объединяет состояние сущности с флагами изменений дочерних объектов.
-    /// Метод проверяет, были ли изменены дочерние объекты, и обновляет состояние сущности
-    /// на основе этих изменений. Если хотя бы один дочерний объект был изменен,
-    /// состояние сущности устанавливается как "Modified".
+    /// Combines entity state with child object modification flags.
+    /// The method checks if any child objects were modified and updates entity state
+    /// accordingly. If at least one child object was modified, entity state
+    /// is set to "Modified".
     /// </summary>
     /// <param name="modified">
-    /// Массив флагов изменений дочерних объектов. Каждый элемент массива указывает,
-    /// был ли изменен соответствующий дочерний объект (true — изменен, false — не изменен, null — неизвестно).
+    /// Array of child object modification flags. Each element indicates whether
+    /// corresponding child object was modified (true - modified, false - not modified, null - unknown).
     /// </param>
-    /// <returns>Результирующее состояние сущности.</returns>
+    /// <returns>Resulting entity state.</returns>
     protected EntityState Combine(params bool?[] modified)
     {
-        // Если текущее состояние сущности уже не "Default", возвращаем его без изменений.
-        // Это означает, что состояние сущности уже было изменено ранее, и дальнейшие проверки не требуются.
+        // If entity state isn't "Default", return it unchanged
+        // This means entity state was already modified previously
         if (_entityStateValue != EntityState.Default) return _entityStateValue;
 
-        // Если ни один дочерний объект не был изменен, возвращаем текущее состояние сущности.
-        // В данном случае это будет "Default", так как состояние не изменилось.
+        // If no child objects were modified, return current entity state
+        // In this case it will be "Default" as state hasn't changed
         if (!modified.Any(m => m.HasValue && m.Value)) return _entityStateValue;
 
-        // Обновляем время последнего изменения сущности.
-        // Это полезно для отслеживания, когда сущность была изменена в последний раз.
-        LastModified = DateTime.UtcNow;
+        // Update last modified timestamp
+        _lastModifiedInternal = DateTime.UtcNow;
 
-        // Добавляем или обновляем время последнего изменения в словаре изменений (_structChanges).
-        // Это позволяет отслеживать изменения в типе-значении (например, DateTime).
-        _structChanges[nameof(LastModified)] = LastModified;
-
-        // Устанавливаем состояние сущности как "Modified".
-        // Это указывает, что сущность была изменена и требует обновления в базе данных.
+        // Set entity state to "Modified"
+        // Indicates entity was modified and requires database update
         _entityStateValue = EntityState.Modified;
 
-        // Возвращаем состояние "Modified".
+        // Return "Modified" state
         return _entityStateValue;
     }
 }
