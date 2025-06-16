@@ -28,7 +28,7 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
     /// Key is property name, value is new property value.
     /// Used for tracking changes in value types (e.g., int, DateTime, bool) without boxing.
     /// </summary>
-    private readonly Dictionary<string, ValueType> _structChanges = new();
+    private readonly Dictionary<string, ValueType?> _structChanges = new();
 
     /// <summary>
     /// Collection of property names representing added (not modified) value objects.
@@ -69,6 +69,26 @@ public abstract class UpdatedValueObject<TP> where TP : UpdatedEntity<TP>
     /// <param name="value">New property value.</param>
     /// <returns>New property value.</returns>
     protected TV TrackStructChange<TV>(string propertyName, TV currentValue, TV value) where TV : struct
+    {
+        // If current and new values are equal, return current value
+        if (currentValue.Equals(value)) return currentValue;
+
+        // Store new property value in struct changes dictionary
+        _structChanges[propertyName] = value;
+
+        // Return new value
+        return value;
+    }
+    
+    /// <summary>
+    /// Tracks changes in nullable value type (struct) properties and returns new value.
+    /// </summary>
+    /// <typeparam name="TV">Property value type (struct).</typeparam>
+    /// <param name="propertyName">Property name.</param>
+    /// <param name="currentValue">Current property value.</param>
+    /// <param name="value">New property value.</param>
+    /// <returns>New property value.</returns>
+    protected TV? TrackStructChange<TV>(string propertyName, TV? currentValue, TV? value) where TV : struct
     {
         // If current and new values are equal, return current value
         if (currentValue.Equals(value)) return currentValue;

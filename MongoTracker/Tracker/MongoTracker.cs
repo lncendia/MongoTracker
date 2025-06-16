@@ -68,7 +68,18 @@ public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression, bool o
         // Set entity state to "Deleted"
         _trackedModels[id].Entity.EntityState = EntityState.Deleted;
     }
-
+    
+    /// <summary>
+    /// Retrieves an entity with the specified ID from tracked models.
+    /// </summary>
+    /// <param name="id">Unique identifier of the entity to retrieve.</param>
+    /// <returns>The entity with the specified ID.</returns>
+    /// <exception cref="KeyNotFoundException">Thrown when entity with specified ID is not found.</exception>
+    public T Get(TK id)
+    {
+        return _trackedModels[id].Entity;
+    }
+    
     /// <summary>
     /// Adds a new entity to tracked models.
     /// </summary>

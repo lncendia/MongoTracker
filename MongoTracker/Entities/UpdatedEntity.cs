@@ -41,7 +41,7 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
     /// Key is property name, value is new property value.
     /// Used for tracking changes in value types (e.g., int, DateTime, bool) without boxing.
     /// </summary>
-    private readonly Dictionary<string, ValueType> _structChanges = new();
+    private readonly Dictionary<string, ValueType?> _structChanges = new();
 
     /// <summary>
     /// Collection of property names representing added (not modified) value objects.
@@ -137,6 +137,36 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
     /// <param name="value">New property value.</param>
     /// <returns>New property value.</returns>
     protected TV TrackStructChange<TV>(string propertyName, TV currentValue, TV value) where TV : struct
+    {
+        // Check if current and new values are equal
+        if (currentValue.Equals(value)) return currentValue;
+
+        // Store new property value in struct changes dictionary
+        _structChanges[propertyName] = value;
+
+        // Update last modified timestamp
+        _lastModifiedInternal = DateTime.UtcNow;
+
+        // Add/update last modified timestamp in struct changes dictionary
+        _structChanges[nameof(LastModified)] = LastModified;
+
+        // Set entity state to "Modified"
+        _entityStateValue = EntityState.Modified;
+
+        // Return new value
+        return value;
+    }
+    
+    
+    /// <summary>
+    /// Tracks changes in nullavle value type (struct) properties and returns new value.
+    /// </summary>
+    /// <typeparam name="TV">Property value type (struct).</typeparam>
+    /// <param name="propertyName">Property name.</param>
+    /// <param name="currentValue">Current property value.</param>
+    /// <param name="value">New property value.</param>
+    /// <returns>New property value.</returns>
+    protected TV? TrackStructChange<TV>(string propertyName, TV? currentValue, TV? value) where TV : struct
     {
         // Check if current and new values are equal
         if (currentValue.Equals(value)) return currentValue;

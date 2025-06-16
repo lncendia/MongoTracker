@@ -110,7 +110,7 @@ MongoTracker is distributed under the MIT License.
 
 ## Feedback
 
-If you have questions, suggestions, or encounter issues, please create an [issue](https://github.com/your-repo/issues) in the project repository.
+If you have questions, suggestions, or encounter issues, please create an [issue](https://github.com/lncendia/MongoTracker/issues) in the project repository.
 
 ---  
 
