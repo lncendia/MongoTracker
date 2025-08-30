@@ -121,9 +121,6 @@ public class TrackedValueObjectCollection<TC, TP> where TC : UpdatedValueObject<
             // Identify elements present in both collections that were modified
             var updatedItems = _originalCollection.Intersect(Collection)
 
-                // Filter only modified elements
-                .Where(e => e.IsModified)
-
                 // Get update definition for each modified element
                 .Select((item, index) => item.GetUpdateDefinition(collectionFullName, index.ToString(), []));
 
