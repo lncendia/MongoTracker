@@ -10,16 +10,6 @@ namespace MongoTracker.Entities;
 public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
 {
     /// <summary>
-    /// The timestamp of the entity's last modification.
-    /// </summary>
-    public DateTime LastModified { get; private set; }
-    
-    /// <summary>
-    /// Internal field storing the actual last modified timestamp.
-    /// </summary>
-    private DateTime _lastModifiedInternal;
-
-    /// <summary>
     /// Current entity state (Default, Added, Modified, Deleted).
     /// </summary>
     [BsonIgnore]
@@ -59,21 +49,18 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
     /// Returns a MongoDB update definition.
     /// This property is used to create a database update query.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when entity state is not Modified</exception>
     public virtual UpdateDefinition<T> UpdateDefinition
     {
         get
         {
             // If entity state isn't "Modified", throw InvalidOperationException as there are no changes
-            if (EntityState != EntityState.Modified) throw new InvalidOperationException();
-            
-            // Update the public LastModified property with our internal tracking value
-            // This ensures the entity reflects the most recent modification time
-            LastModified = _lastModifiedInternal;
+            if (EntityState != EntityState.Modified) throw new InvalidOperationException("Cannot create UpdateDefinition for an entity that is not modified.");
 
-            // Record this change in our structural changes dictionary
-            // We track it under the property name for precise change detection
-            // This enables efficient updates and optimistic concurrency checks
-            _structChanges[nameof(LastModified)] = LastModified;
+            // If state is Modified but no changes are tracked, return null
+            // This can occur when using Combine method where related entities have changes
+            // In properly configured entities, UpdateDefinition is overridden and uses Combine method that handles null cases
+            if (_changes.Count == 0) return null!;
             
             // Create builder for constructing update definition
             var updateBuilder = Builders<T>.Update;
@@ -118,9 +105,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // Store new property value in changes dictionary
         _changes[propertyName] = value;
 
-        // Update last modified timestamp
-        _lastModifiedInternal = DateTime.UtcNow;
-
         // Set entity state to "Modified"
         _entityStateValue = EntityState.Modified;
 
@@ -143,12 +127,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
 
         // Store new property value in struct changes dictionary
         _structChanges[propertyName] = value;
-
-        // Update last modified timestamp
-        _lastModifiedInternal = DateTime.UtcNow;
-
-        // Add/update last modified timestamp in struct changes dictionary
-        _structChanges[nameof(LastModified)] = LastModified;
 
         // Set entity state to "Modified"
         _entityStateValue = EntityState.Modified;
@@ -174,12 +152,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // Store new property value in struct changes dictionary
         _structChanges[propertyName] = value;
 
-        // Update last modified timestamp
-        _lastModifiedInternal = DateTime.UtcNow;
-
-        // Add/update last modified timestamp in struct changes dictionary
-        _structChanges[nameof(LastModified)] = LastModified;
-
         // Set entity state to "Modified"
         _entityStateValue = EntityState.Modified;
 
@@ -204,9 +176,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // this means value object was added
         if (currentValue == null && value != null)
         {
-            // Update last modified timestamp
-            _lastModifiedInternal = DateTime.UtcNow;
-            
             // Set entity state to "Modified"
             _entityStateValue = EntityState.Modified;
             
@@ -222,9 +191,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // this means value object was removed
         else if (currentValue != null && value == null)
         {
-            // Update last modified timestamp
-            _lastModifiedInternal = DateTime.UtcNow;
-            
             // Set entity state to "Modified"
             _entityStateValue = EntityState.Modified;
             
@@ -254,9 +220,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // Scenario 1: Adding new collection
         if (currentValue == null && value != null)
         {
-            // Update last modified timestamp
-            _lastModifiedInternal = DateTime.UtcNow;
-            
             // Set entity state to "Modified"
             _entityStateValue = EntityState.Modified;
             
@@ -276,9 +239,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // Scenario 2: Removing existing collection
         if (currentValue != null && value == null)
         {
-            // Update last modified timestamp
-            _lastModifiedInternal = DateTime.UtcNow;
-            
             // Set entity state to "Modified"
             _entityStateValue = EntityState.Modified;
             
@@ -292,9 +252,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // Scenario 3: Updating existing collection
         if (currentValue != null && value != null)
         {
-            // Update last modified timestamp
-            _lastModifiedInternal = DateTime.UtcNow;
-            
             // Set entity state to "Modified"
             _entityStateValue = EntityState.Modified;
             
@@ -327,9 +284,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // Scenario 1: Adding new value object collection
         if (currentValue == null && value != null)
         {
-            // Update last modified timestamp
-            _lastModifiedInternal = DateTime.UtcNow;
-            
             // Set entity state to "Modified"
             _entityStateValue = EntityState.Modified;
             
@@ -349,9 +303,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // Scenario 2: Removing existing collection
         if (currentValue != null && value == null)
         {
-            // Update last modified timestamp
-            _lastModifiedInternal = DateTime.UtcNow;
-            
             // Set entity state to "Modified"
             _entityStateValue = EntityState.Modified;
             
@@ -365,9 +316,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // Scenario 3: Updating existing collection
         if (currentValue != null && value != null)
         {
-            // Update last modified timestamp
-            _lastModifiedInternal = DateTime.UtcNow;
-            
             // Set entity state to "Modified"
             _entityStateValue = EntityState.Modified;
             
@@ -440,9 +388,6 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
         // If no child objects were modified, return current entity state
         // In this case it will be "Default" as state hasn't changed
         if (!modified.Any(m => m.HasValue && m.Value)) return _entityStateValue;
-
-        // Update last modified timestamp
-        _lastModifiedInternal = DateTime.UtcNow;
 
         // Set entity state to "Modified"
         // Indicates entity was modified and requires database update

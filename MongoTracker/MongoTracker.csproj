@@ -5,8 +5,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>13</LangVersion>
-        <PackageId>MongoTracker.Core</PackageId>
-        <Version>1.0.4</Version>
+        <PackageId>Incendia.MongoTracker</PackageId>
+        <Version>1.0.6</Version>
         <Authors>Incendia</Authors>
         <Description>A mini-ORM (Object-Relational Mapping) library for working with MongoDB, which allows you to automatically track changes in entities and perform bulk writes to the database. The library simplifies working with MongoDB by providing a user-friendly interface for managing entities and their changes.</Description>
         <PackageTags>mongodb mongo nosql orm tracker csharp</PackageTags>
@@ -18,7 +18,7 @@
         <PackageIcon>icon.png</PackageIcon>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="MongoDB.Driver" Version="3.4.3" />
+        <PackageReference Include="MongoDB.Driver" Version="3.0.0" />
     </ItemGroup>
 
     <ItemGroup>

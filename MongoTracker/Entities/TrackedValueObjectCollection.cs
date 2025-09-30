@@ -122,7 +122,10 @@ public class TrackedValueObjectCollection<TC, TP> where TC : UpdatedValueObject<
             var updatedItems = _originalCollection.Intersect(Collection)
 
                 // Get update definition for each modified element
-                .Select((item, index) => item.GetUpdateDefinition(collectionFullName, index.ToString(), []));
+                .Select((item, index) => item.GetUpdateDefinition(collectionFullName, index.ToString(), []))
+                
+                // Filtering objects without changes
+                .Where(item=> item != null);
 
             // Combine all update definitions for modified elements into one
             return updateBuilder.Combine(updatedItems);

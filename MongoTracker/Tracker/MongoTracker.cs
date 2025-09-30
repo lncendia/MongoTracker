@@ -12,15 +12,11 @@ namespace MongoTracker.Tracker;
 /// <typeparam name="TK">The type of the entity's primary key/identifier.</typeparam>
 /// <typeparam name="T">The type of the entity being tracked, which must implement <see cref="UpdatedEntity{T}"/>.</typeparam>
 /// <param name="getIdExpression">An expression that retrieves the unique identifier for entities of type T.</param>
-/// <param name="optimisticConcurrencyControl">
-/// Whether to enable optimistic concurrency control (default: true).
-/// When enabled, updates will verify the entity hasn't changed since it was loaded.
-/// </param>
 /// <remarks>
 /// This tracker maintains the state of entities and provides mechanisms for detecting changes
 /// and applying them to the database with proper concurrency handling.
 /// </remarks>
-public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression, bool optimisticConcurrencyControl = true)
+public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression)
     where T : UpdatedEntity<T>
     where TK : notnull
 {
@@ -34,7 +30,7 @@ public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression, bool o
     /// Key - unique entity identifier (ID).
     /// Value - the entity itself.
     /// </summary>
-    private Dictionary<TK, TrackerEntry<T>> _trackedModels = new();
+    private readonly Dictionary<TK, TrackerEntry<T>> _trackedModels = new();
 
     /// <summary>
     /// Updates an entity.
@@ -52,7 +48,7 @@ public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression, bool o
         model.ClearChanges();
 
         // Add entity to tracked models dictionary
-        _trackedModels.Add(_getId(model), new TrackerEntry<T>(model, model.LastModified));
+        _trackedModels.Add(_getId(model), new TrackerEntry<T>(model, GetLastModified(model)));
 
         // Return updated entity
         return model;
@@ -94,7 +90,7 @@ public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression, bool o
         model.EntityState = EntityState.Added;
 
         // Add entity to tracked models dictionary
-        _trackedModels.Add(_getId(model), new TrackerEntry<T>(model, model.LastModified));
+        _trackedModels.Add(_getId(model), new TrackerEntry<T>(model, GetLastModified(model)));
     }
 
     /// <summary>
@@ -136,11 +132,11 @@ public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression, bool o
             var filter = Builders<T>.Filter.Eq(getIdExpression, entry.Key); // Eq means "equals"
 
             // If optimistic concurrency control is enabled
-            if (optimisticConcurrencyControl)
+            if (entry.Value.Entity is VersionedUpdatedEntity<T>)
             {
                 // Add a condition to check that the LastModified field matches
                 // This ensures we only delete if the record hasn't been modified by someone else
-                var concurrencyFilter = Builders<T>.Filter.Eq(t => t.LastModified, entry.Value.LastModified);
+                var concurrencyFilter = Builders<T>.Filter.Eq(nameof(VersionedUpdatedEntity<T>.LastModified), entry.Value.LastModified);
 
                 // Combine both filters (ID match AND LastModified match)
                 filter = Builders<T>.Filter.And(filter, concurrencyFilter);
@@ -158,11 +154,11 @@ public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression, bool o
             var filter = Builders<T>.Filter.Eq(getIdExpression, entry.Key); // Eq means "equals"
 
             // If optimistic concurrency control is enabled
-            if (optimisticConcurrencyControl)
+            if (entry.Value.Entity is VersionedUpdatedEntity<T>)
             {
                 // Add a condition to check that the LastModified field matches
-                // This ensures we only update if the record hasn't been modified by someone else
-                var concurrencyFilter = Builders<T>.Filter.Eq(t => t.LastModified, entry.Value.LastModified);
+                // This ensures we only delete if the record hasn't been modified by someone else
+                var concurrencyFilter = Builders<T>.Filter.Eq(nameof(VersionedUpdatedEntity<T>.LastModified), entry.Value.LastModified);
 
                 // Combine both filters (ID match AND LastModified match)
                 filter = Builders<T>.Filter.And(filter, concurrencyFilter);
@@ -174,30 +170,31 @@ public class MongoTracker<TK, T>(Expression<Func<T, TK>> getIdExpression, bool o
             bulkOperations.Add(new UpdateOneModel<T>(filter, entry.Value.Entity.UpdateDefinition));
         }
 
-        // Create a new dictionary to store the updated tracking state
-        // We initialize it with the same capacity as the current tracked models collection
-        // to maintain optimal memory allocation
-        var newDictionary = new Dictionary<TK, TrackerEntry<T>>(_trackedModels.Count);
-
-        // Process each entity in the current tracking dictionary
-        foreach (var entry in _trackedModels)
-        {
-            // Clear any change tracking markers from the entity
-            // This prepares the entity for the next round of change detection
-            entry.Value.Entity.ClearChanges();
-
-            // Create a new tracking entry in our refreshed dictionary:
-            // - The entity itself (now with cleared change markers)
-            // - The last modified timestamp (preserved from previous tracking)
-            newDictionary[entry.Key] = new TrackerEntry<T>(entry.Value.Entity, entry.Value.Entity.LastModified);
-        }
-
-        // Replace the old tracking dictionary with our new refreshed version
-        // This effectively resets our change tracking while preserving the entity states
-        _trackedModels = newDictionary;
-
         // Return the collection of bulk operations to be executed
         // These operations represent all the changes that were detected in this cycle
         return bulkOperations;
     }
+
+    /// <summary>
+    /// Retrieves the last modification timestamp for the given entity.
+    /// Used to support optimistic concurrency checks when deleting or updating entities.
+    /// </summary>
+    /// <param name="entity">The entity from which to obtain the LastModified timestamp.</param>
+    /// <returns>
+    /// - If the entity is a <see cref="VersionedUpdatedEntity{T}"/>, returns its <see cref="VersionedUpdatedEntity{T}.LastModified"/> value.
+    /// - Otherwise, returns <see cref="DateTime.MinValue"/> as a default placeholder.
+    /// </returns>
+    private static DateTime GetLastModified(T entity)
+    {
+        // Check if the entity implements versioned optimistic locking
+        if (entity is VersionedUpdatedEntity<T> versionedEntity)
+        {
+            // Return the actual LastModified timestamp for concurrency control
+            return versionedEntity.LastModified;
+        }
+    
+        // If not versioned, return a sentinel value (DateTime.MinValue)
+        return DateTime.MinValue;
+    }
+
 }
