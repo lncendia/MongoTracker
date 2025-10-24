@@ -60,7 +60,7 @@ public abstract class UpdatedEntity<T> where T : UpdatedEntity<T>
             // If state is Modified but no changes are tracked, return null
             // This can occur when using Combine method where related entities have changes
             // In properly configured entities, UpdateDefinition is overridden and uses Combine method that handles null cases
-            if (_changes.Count == 0) return null!;
+            if (_changes.Count == 0 && _structChanges.Count == 0) return null!;
             
             // Create builder for constructing update definition
             var updateBuilder = Builders<T>.Update;
