@@ -4,11 +4,14 @@
         <TargetFramework>netstandard2.1</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <LangVersion>13</LangVersion>
+        <LangVersion>14</LangVersion>
         <PackageId>Incendia.MongoTracker</PackageId>
-        <Version>1.0.7</Version>
+        <Version>2.0.0</Version>
         <Authors>Incendia</Authors>
-        <Description>A mini-ORM (Object-Relational Mapping) library for working with MongoDB, which allows you to automatically track changes in entities and perform bulk writes to the database. The library simplifies working with MongoDB by providing a user-friendly interface for managing entities and their changes.</Description>
+        <Description>
+            A lightweight change tracker for MongoDB.Driver that automatically tracks entity changes and generates atomic bulk write operations.
+            MongoTracker extends the standard MongoDB.Driver, making it easier to work with nested objects, collections, and versioned fields.
+        </Description>
         <PackageTags>mongodb mongo nosql orm tracker csharp</PackageTags>
         <RepositoryUrl>https://github.com/lncendia/MongoTracker</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -24,6 +27,12 @@
     <ItemGroup>
         <None Include="README.md" Pack="true" Visible="false" PackagePath=""/>
         <None Include="icon.png" Pack="true" Visible="false" PackagePath=""/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+            <_Parameter1>MongoTracker.Tests</_Parameter1>
+        </AssemblyAttribute>
     </ItemGroup>
 
 </Project>

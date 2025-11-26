@@ -3,7 +3,7 @@ namespace MongoTracker.Entities;
 /// <summary>
 /// Enumeration representing the state of an entity.
 /// </summary>
-public enum EntityState
+internal enum EntityState
 {
     /// <summary>
     /// Default state (entity has not been modified, added or deleted).

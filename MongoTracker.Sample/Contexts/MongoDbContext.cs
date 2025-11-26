@@ -6,7 +6,6 @@ namespace MongoTracker.Sample.Contexts;
 
 /// <summary>
 /// Provides a simplified interface for working with MongoDB collections.
-/// This class serves as a facade for accessing and managing database collections.
 /// </summary>
 public class MongoDbContext
 {
@@ -54,7 +53,6 @@ public class MongoDbContext
 
     /// <summary>
     /// Asynchronously creates collections in the database if they don't exist.
-    /// This method ensures all required collections are created before use.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
     public async Task EnsureCreatedAsync(CancellationToken cancellationToken = default)
@@ -64,5 +62,21 @@ public class MongoDbContext
         
         // Create the "Books" collection if it doesn't exist
         await _database.CreateCollectionAsync("Books", cancellationToken: cancellationToken);
+
+        // Clears all documents from collections.
+        await ClearCollectionsAsync(cancellationToken);
+    }
+    
+    /// <summary>
+    /// Asynchronously clears all documents from the Authors and Books collections.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    private async Task ClearCollectionsAsync(CancellationToken cancellationToken = default)
+    {
+        // Clear all documents from the "Authors" collection
+        await _database.GetCollection<Author>("Authors").DeleteManyAsync(FilterDefinition<Author>.Empty, cancellationToken);
+    
+        // Clear all documents from the "Books" collection  
+        await _database.GetCollection<Book>("Books").DeleteManyAsync(FilterDefinition<Book>.Empty, cancellationToken);
     }
 }

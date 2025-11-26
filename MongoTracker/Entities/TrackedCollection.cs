@@ -3,22 +3,26 @@
 namespace MongoTracker.Entities;
 
 /// <summary>
-/// A class representing a tracked collection that can be modified and tracks its changes.
+/// Represents a tracked collection of simple (non-nested) objects within a parent entity.
 /// </summary>
-/// <typeparam name="TC">The type of collection elements.</typeparam>
-/// <typeparam name="TP">The type of parent entity to which the collection belongs.</typeparam>
-public class TrackedCollection<TC, TP>
+/// <typeparam name="T">The root entity type used for MongoDB update definitions.</typeparam>
+internal class TrackedCollection<T> where T : class
 {
+    #region Fields
+
     /// <summary>
     /// The original collection of value objects storing the state before changes.
-    /// Used for comparison with the current collection to detect changes.
     /// </summary>
-    private List<TC> _originalCollection = [];
-    
+    private readonly IReadOnlyList<object> _originalCollection;
+
     /// <summary>
     /// The current collection that can be modified.
     /// </summary>
-    public List<TC> Collection { get; set; } = [];
+    private List<object> _collection;
+
+    #endregion
+
+    #region Properties
 
     /// <summary>
     /// A flag indicating whether the collection has been modified.
@@ -28,72 +32,66 @@ public class TrackedCollection<TC, TP>
         get
         {
             // Check if there are elements in the current collection that aren't in the original
-            if (Collection.Except(_originalCollection).Any()) return true;
+            if (_collection.Except(_originalCollection).Any()) return true;
 
             // Check if there are elements in the original collection that aren't in the current
-            if (_originalCollection.Except(Collection).Any()) return true;
+            if (_originalCollection.Except(_collection).Any()) return true;
 
             // If no differences found, the collection hasn't been modified
             return false;
         }
     }
-    
+
+    #endregion
+
+    #region Methods
+
     /// <summary>
-    /// Clears all changes in the collection and resets the state of value objects.
+    /// Updates the tracked collection with a new set of values.
     /// </summary>
-    public void ClearChanges()
+    /// <param name="updatedCollection">The new collection values to be tracked.</param>
+    public void TrackChanges(IEnumerable<object> updatedCollection)
     {
-        // Copy the current collection to the original using spread operator
-        _originalCollection = [..Collection];
+        _collection = updatedCollection.ToList();
     }
 
     /// <summary>
     /// Returns a MongoDB update definition based on collection changes.
-    /// The method analyzes differences between the current and original collections
-    /// and returns an appropriate MongoDB update definition.
     /// </summary>
     /// <param name="parentPropertyName">Parent property name (for nested documents)</param>
     /// <param name="propertyName">Name of the collection property being updated</param>
-    /// <param name="blockedParentPropertyNames">List of blocked properties that cannot be partially updated</param>
-    /// <returns>
-    /// MongoDB update definition. Returns <c>null</c> if there are no changes.
-    /// </returns>
-    public UpdateDefinition<TP>? GetUpdateDefinition(string? parentPropertyName, string propertyName,
-        IEnumerable<string> blockedParentPropertyNames)
+    /// <returns>MongoDB update definition. Returns <c>null</c> if there are no changes.</returns>
+    public UpdateDefinition<T>? GetUpdateDefinition(string? parentPropertyName, string propertyName)
     {
-        // If the parent property name is in blockedParentPropertyNames,
-        // return null as this property shouldn't be updated and the object will be written as a whole
-        if (blockedParentPropertyNames.Contains(propertyName)) return null;
-        
         // Form the full property name (including parent properties)
-        var collectionFullName = Combine(parentPropertyName, propertyName);
-        
+        var collectionFullName = Utils.CombineName(parentPropertyName, propertyName);
+
         // Create a builder for constructing the update definition
-        var updateBuilder = Builders<TP>.Update;
+        var updateBuilder = Builders<T>.Update;
 
         // Check if there are elements in the current collection that aren't in the original
         // This means new elements were added to the collection
-        var someAdded = Collection.Except(_originalCollection).Any();
+        var someAdded = _collection.Except(_originalCollection).Any();
 
         // Check if there are elements in the original collection that aren't in the current
         // This means elements were removed from the collection
-        var someRemoved = _originalCollection.Except(Collection).Any();
+        var someRemoved = _originalCollection.Except(_collection).Any();
 
         // If there are added elements and no removed ones
         if (someAdded && !someRemoved)
         {
             // Identify elements that were added to the current collection
-            var addedItems = Collection.Except(_originalCollection);
+            var addedItems = _collection.Except(_originalCollection);
 
-            // Return PushEach operation to add new elements to the collection
-            return updateBuilder.PushEach(collectionFullName, addedItems);
+            // Return AddToSetEach operation to add new elements to the collection
+            return updateBuilder.AddToSetEach(collectionFullName, addedItems);
         }
 
         // If there are removed elements and no added ones
         if (someRemoved && !someAdded)
         {
             // Identify elements that were removed from the current collection
-            var removedItems = _originalCollection.Except(Collection).ToArray();
+            var removedItems = _originalCollection.Except(_collection).ToArray();
 
             // Return PullAll operation to remove elements from the collection
             return updateBuilder.PullAll(collectionFullName, removedItems);
@@ -103,30 +101,27 @@ public class TrackedCollection<TC, TP>
         if (someAdded && someRemoved)
         {
             // In this case, it's simpler to completely replace the collection with the new value
-            return updateBuilder.Set(collectionFullName, Collection);
+            return updateBuilder.Set(collectionFullName, _collection);
         }
 
         // If no changes, return null
         return null;
     }
-    
-    /// <summary>
-    /// Combines parent property name and current property name to form a MongoDB path.
-    /// If parent property name is absent (null), returns only the current property name.
-    /// </summary>
-    /// <param name="parentPropertyName">Parent property name. Can be null if the property isn't nested.</param>
-    /// <param name="propertyName">Current property name.</param>
-    /// <returns>
-    /// A string representing the property path in MongoDB.
-    /// For example, if parentPropertyName = "Parent" and propertyName = "Child", the method returns "Parent.Child".
-    /// If parentPropertyName = null, the method returns "Child".
-    /// </returns>
-    private static string Combine(string? parentPropertyName, string propertyName)
-    {
-        // If parent property name is absent, return only the current property name
-        if (parentPropertyName == null) return propertyName;
 
-        // Return the combined path with properties separated by a dot
-        return $"{parentPropertyName}.{propertyName}";
+    #endregion
+
+    #region Constructors
+
+    /// <summary>
+    /// Initializes a new tracked collection by capturing the initial set of items.
+    /// </summary>
+    /// <param name="originalCollection">The initial collection of items to be tracked.</param>
+    public TrackedCollection(IEnumerable<object> originalCollection)
+    {
+        var collection = originalCollection.ToList();
+        _originalCollection = collection;
+        _collection = collection;
     }
+
+    #endregion
 }

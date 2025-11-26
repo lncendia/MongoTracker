@@ -14,7 +14,7 @@ services:
 
   # Service for MongoDB
   mongotracker.mongo:
-    image: mongo:latest # Using the latest official MongoDB image
+    image: mongo:8.0.15 # Using the official MongoDB image
     ports:
       - "27017:27017" # Exposing port 27017 for host access to MongoDB
     environment:
@@ -23,7 +23,7 @@ services:
 
   # Service for Mongo Express (web interface for MongoDB management)
   mongotracker.mongo-express:
-    image: mongo-express:latest # Using the latest official Mongo Express image
+    image: mongo-express:1.0.2-20-alpine3.19 # Using the official Mongo Express image
     ports:
       - "8081:8081" # Exposing port 8081 for host access to Mongo Express
     environment:
