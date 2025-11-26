@@ -1,6 +1,6 @@
 # MongoTracker
 
-[![NuGet](https://img.shields.io/nuget/v/MongoTracker.Core.svg)](https://www.nuget.org/packages/MongoTracker.Core)
+[![NuGet](https://img.shields.io/nuget/v/Incendia.MongoTracker.svg)](https://www.nuget.org/packages/Incendia.MongoTracker)
 
 **MongoTracker** is a lightweight change tracker for MongoDB Client. It **does not replace MongoDB.Driver**; instead, it extends it by automatically tracking entity changes, generating atomic update operations, and supporting bulk writes. MongoTracker works seamlessly with nested objects, collections, and versioned fields.
 
@@ -19,7 +19,7 @@
 ## Installation
 
 ```bash
-dotnet add package MongoTracker.Core
+dotnet add package Incendia.MongoTracker
 ```
 
 ---

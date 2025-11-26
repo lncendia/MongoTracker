@@ -1,106 +1,103 @@
 # MongoTracker
 
-**MongoTracker** is a lightweight ORM (Object-Relational Mapping) library for MongoDB that automatically tracks changes in entities and performs bulk database operations. It simplifies working with MongoDB by providing a convenient interface for managing entities and their changes.
+**MongoTracker** is a lightweight change tracker for MongoDB Client. It **does not replace MongoDB.Driver**; instead, it extends it by automatically tracking entity changes, generating atomic update operations, and supporting bulk writes. MongoTracker works seamlessly with nested objects, collections, and versioned fields.
 
-## Key Features
+---
 
-1. **Change Tracking**:
-   - Automatic tracking of entity changes (insert, update, delete).
-   - Support for bulk write operations (BulkWrite).
-   - Granular updates for complex documents, including nested objects and collections.
+## Features
 
-2. **User-Friendly Interface**:
-   - Easy entity registration in the tracker.
-   - Seamless integration with existing projects.
+* **Change Tracking:** Automatically detects changes in fields, nested objects, and collections.
+* **Atomic Operations:** Generates minimal `$set`, `$push`, `$pull`, and `$currentDate` operations.
+* **Collections & Nested Objects:** Supports `IsTrackedObject()`, `IsCollection()`, `IsTrackedObjectCollection()`.
+* **Versioning:** Automatically updates versioned fields (`IsVersion()`).
+* **Compatibility:** Works on top of standard `IMongoCollection<T>`.
 
-3. **Flexibility**:
-   - Supports any entity type.
-   - Configurable entity identifiers.
-
-4. **Performance**:
-   - Minimizes database queries through bulk operations.
-   - Updates only modified fields, reducing database load.
+---
 
 ## Installation
 
-To use MongoTracker in your project, add it as a NuGet dependency:
+```bash
+dotnet add package Incendia.MongoTracker
+```
 
-```bash  
-dotnet add package MongoTracker.Core
-```  
+---
 
 ## Usage
 
-### 1. Initializing the Tracker
+### 1. Configure your model
 
-To start using MongoTracker, create an instance of the tracker by specifying the entity type and its identifier.
+```csharp
+var config = new ModelBuilder();
 
-```csharp  
-var mongoTracker = new MongoTracker<Guid, Book>(tk => tk.Id);  
-```  
+config.Entity<Book>(e =>
+{
+    e.Property(b => b.Id).IsIdentifier();
+    e.Property(b => b.Audiobook).IsTrackedObject();
+    e.Property(b => b.Authors).IsCollection();
+    e.Property(b => b.Chapters).IsTrackedObjectCollection();
+    e.Property(b => b.LastUpdate).IsVersion();
+});
+```
 
-### 2. Adding Entities to the Tracker
+---
 
-Entities can be added individually or as a list. The tracker automatically monitors changes.
+### 2. Initialize the tracker
 
-```csharp  
-var book = new Book { Id = Guid.NewGuid(), Title = "Sample Book" };  
-mongoTracker.Add(book);  
+```csharp
+var tracker = new MongoTracker<Book>(config);
+```
 
-var anotherBook = await mongoDbContext.Books  
-    .AsQueryable()  
-    .FirstOrDefaultAsync(b => b.Id == idToFind);  
-anotherBook = mongoTracker.Track(anotherBook);  
-```  
+---
 
-### 3. Bulk Writing Changes
+### 3. Start tracking existing entities or add new
 
-After adding entities, changes can be written to the database in a single operation.
+```csharp
+var book = await context.Books.AsQueryable().FirstAsync(b => b.Title == "A Game of Thrones");
+book = tracker.Track(book);
 
-```csharp  
-await mongoDbContext.Books.BulkWriteAsync(mongoTracker.Commit());  
-```  
+var book2 = new Book() { Title = "The Shining" };
+tracker.Add(book2)
+```
 
-### 4. Granular Change Updates
+---
 
-MongoTracker tracks changes even in complex documents, including nested objects and collections. With proper entity configuration, the library detects modifications and updates only the changed fields.
+### 4. Modify tracked entities
 
-Example:
+```csharp
+// Update a field in a nested object
+book.Audiobook.Duration = TimeSpan.FromHours(30).TotalMinutes;
 
-```csharp  
-var book = new Book  
-{  
-    Id = Guid.NewGuid(),  
-    Title = "Sample Book",  
-    Chapters = new List<BookChapter>  
-    {  
-        new BookChapter { Name = "Chapter 1", StartPage = 1, EndPage = 10 }  
-    }  
-};  
+// Update a nested collection inside a tracked object
+book.Chapters.First().Footnotes.Add("Important note");
 
-mongoTracker.Add(book);  
+// Add a new element to a collection
+book.Chapters.Add(new BookChapter { Name = "Bran", StartPage = 31, EndPage = 50 });
+```
 
-// Modify the chapter name  
-book.Chapters[0].Name = "Updated Chapter 1";  
+---
 
-// The tracker detects the change and updates only the 'Name' field in the 'Chapters' collection.  
-await mongoDbContext.Books.BulkWriteAsync(mongoTracker.Commit());  
-```  
+### 5. Mark the entity for deletion
 
-## Sample Project (MongoTracker.Sample)
+```csharp
+tracker.Delete(book);
+```
 
-The repository includes a sample project, `MongoTracker.Sample`, demonstrating the library's core features. The example covers:
+---
 
-1. **Database Initialization**:
-   - Creating collections for authors and books.
-   - Seeding the database with test data.
+### 6. Commit changes to MongoDB
 
-2. **Change Tracking**:
-   - Adding, updating, and deleting entities.
-   - Bulk writing changes to the database.
+```csharp
+var updates = tracker.Commit();
+await context.Books.BulkWriteAsync(updates);
+```
 
-3. **Working with Different Entity Types**:
-   - Authors, books, chapters, and audiobooks.
+---
+
+
+## Sample Project
+
+The repository includes a sample project, `MongoTracker.Sample`, demonstrating the library's core features.
+For a real-world usage example, see [Overoom](https://github.com/lncendia/Overoom).
 
 ## License
 
