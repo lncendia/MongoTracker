@@ -20,22 +20,22 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Update="TrackedChildObjectTestsEntities.cs">
-        <DependentUpon>TrackedChildObjectTests.cs</DependentUpon>
-      </Compile>
-      <Compile Update="TrackedEntityTestsEntities.cs">
-        <DependentUpon>TrackedEntityTests.cs</DependentUpon>
-      </Compile>
-      <Compile Update="TrackedCollectionTestsEntities.cs">
-        <DependentUpon>TrackedCollectionTests.cs</DependentUpon>
-      </Compile>
-      <Compile Update="TrackedChildObjectCollectionTestsEntities.cs">
-        <DependentUpon>TrackedChildObjectCollectionTests.cs</DependentUpon>
-      </Compile>
+        <Compile Update="TrackedChildObjectTestsEntities.cs">
+            <DependentUpon>TrackedChildObjectTests.cs</DependentUpon>
+        </Compile>
+        <Compile Update="TrackedEntityTestsEntities.cs">
+            <DependentUpon>TrackedEntityTests.cs</DependentUpon>
+        </Compile>
+        <Compile Update="TrackedCollectionTestsEntities.cs">
+            <DependentUpon>TrackedCollectionTests.cs</DependentUpon>
+        </Compile>
+        <Compile Update="TrackedChildObjectCollectionTestsEntities.cs">
+            <DependentUpon>TrackedChildObjectCollectionTests.cs</DependentUpon>
+        </Compile>
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\MongoTracker\MongoTracker.csproj" />
+        <ProjectReference Include="..\MongoTracker\MongoTracker.csproj"/>
     </ItemGroup>
 
 </Project>

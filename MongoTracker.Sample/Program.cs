@@ -32,25 +32,25 @@ var tracker = new MongoTracker<Book>(config);
 
 // Find author "Jim Dale" ID in Authors collection
 var jimDaleId = await context.Authors
-    .AsQueryable()
-    .Where(a => a.Name == "Jim Dale")
-    .Select(a => a.Id)
-    .FirstAsync();
+  .AsQueryable()
+  .Where(a => a.Name == "Jim Dale")
+  .Select(a => a.Id)
+  .FirstAsync();
 
 // Find "A Game of Thrones" book in Books collection
 var gameOfThrones = await context.Books
-    .AsQueryable()
-    .FirstAsync(b => b.Title == "A Game of Thrones");
+  .AsQueryable()
+  .FirstAsync(b => b.Title == "A Game of Thrones");
 
 // Find "The Shining" book in Books collection
 var shining = await context.Books
-    .AsQueryable()
-    .FirstAsync(b => b.Title == "The Shining");
+  .AsQueryable()
+  .FirstAsync(b => b.Title == "The Shining");
 
 // Find "Harry Potter and the Philosopher's Stone" book in Books collection
 var harryPotter = await context.Books
-    .AsQueryable()
-    .FirstAsync(b => b.Title == "Harry Potter and the Philosopher's Stone");
+  .AsQueryable()
+  .FirstAsync(b => b.Title == "Harry Potter and the Philosopher's Stone");
 
 // Start tracking changes for this book
 harryPotter = tracker.Track(harryPotter);
@@ -64,9 +64,9 @@ gameOfThrones = tracker.Track(gameOfThrones);
 // Add new chapter to "A Game of Thrones"
 gameOfThrones.Chapters.Add(new BookChapter
 {
-    Name = "Bran",
-    StartPage = 31,
-    EndPage = 50
+  Name = "Bran",
+  StartPage = 31,
+  EndPage = 50
 });
 
 // Update audiobook duration for "A Game of Thrones"
@@ -75,8 +75,8 @@ gameOfThrones.Audiobook!.Duration = TimeSpan.FromHours(30).TotalMinutes;
 // Create new audiobook for "The Shining" and link it to author "Jim Dale"
 shining.Audiobook = new Audiobook
 {
-    Author = jimDaleId,
-    Duration = TimeSpan.FromHours(14).TotalMinutes
+  Author = jimDaleId,
+  Duration = TimeSpan.FromHours(14).TotalMinutes
 };
 
 // Mark "Harry Potter and the Philosopher's Stone" for deletion
@@ -123,110 +123,104 @@ return;
 // Async method for database initialization
 async Task InitializeDatabaseAsync(MongoDbContext mongoDbContext, ModelBuilder configuration)
 {
-    // Create tracker for monitoring changes in authors collection
-    var mongoAuthorTracker = new MongoTracker<Author>(configuration);
+  // Create tracker for monitoring changes in authors collection
+  var mongoAuthorTracker = new MongoTracker<Author>(configuration);
 
-    // Create authors list
-    var authors = new List<Author>
+  // Create authors list
+  var authors = new List<Author>
+  {
+    new() { Id = Guid.NewGuid(), Name = "J.K. Rowling" },
+    new() { Id = Guid.NewGuid(), Name = "George R.R. Martin" },
+    new() { Id = Guid.NewGuid(), Name = "Stephen King" },
+    new() { Id = Guid.NewGuid(), Name = "Jim Dale" },
+    new() { Id = Guid.NewGuid(), Name = "Roy Dotrice" },
+  };
+
+  // Add each author to tracker for change monitoring
+  foreach (var author in authors) mongoAuthorTracker.Add(author);
+
+  // Bulk insert authors into database Authors collection
+  await mongoDbContext.Authors.BulkWriteAsync(mongoAuthorTracker.Commit());
+
+  // Create tracker for monitoring changes in books collection
+  var mongoBookTracker = new MongoTracker<Book>(configuration);
+
+  // Create books list
+  var books = new List<Book>
+  {
+    new()
     {
-        new() { Id = Guid.NewGuid(), Name = "J.K. Rowling" },
-        new() { Id = Guid.NewGuid(), Name = "George R.R. Martin" },
-        new() { Id = Guid.NewGuid(), Name = "Stephen King" },
-        new() { Id = Guid.NewGuid(), Name = "Jim Dale" },
-        new() { Id = Guid.NewGuid(), Name = "Roy Dotrice" },
-    };
-
-    // Add each author to tracker for change monitoring
-    foreach (var author in authors) mongoAuthorTracker.Add(author);
-
-    // Bulk insert authors into database Authors collection
-    await mongoDbContext.Authors.BulkWriteAsync(mongoAuthorTracker.Commit());
-
-    // Create tracker for monitoring changes in books collection
-    var mongoBookTracker = new MongoTracker<Book>(configuration);
-
-    // Create books list
-    var books = new List<Book>
+      Id = Guid.NewGuid(),
+      Title = "Harry Potter and the Philosopher's Stone",
+      Authors = [authors[0].Id],
+      Audiobook = new Audiobook
+      {
+        Author = authors[3].Id,
+        Duration = 480
+      },
+      Chapters =
+      [
+        new BookChapter { Name = "The Boy Who Lived", StartPage = 1, EndPage = 15 },
+        new BookChapter { Name = "The Vanishing Glass", StartPage = 16, EndPage = 30 }
+      ]
+    },
+    new()
     {
-        new()
-        {
-            Id = Guid.NewGuid(),
-            Title = "Harry Potter and the Philosopher's Stone",
-            Authors = [authors[0].Id],
-            Audiobook = new Audiobook
-            {
-                Author = authors[3].Id,
-                Duration = 480
-            },
-            Chapters =
-            [
-                new BookChapter { Name = "The Boy Who Lived", StartPage = 1, EndPage = 15 },
-                new BookChapter { Name = "The Vanishing Glass", StartPage = 16, EndPage = 30 }
-            ]
-        },
-        new()
-        {
-            Id = Guid.NewGuid(),
-            Title = "A Game of Thrones",
-            Authors = [authors[1].Id],
-            Audiobook = new Audiobook
-            {
-                Author = authors[4].Id,
-                Duration = 480
-            },
-            Chapters =
-            [
-                new BookChapter { Name = "Prologue", StartPage = 1, EndPage = 10 }
-            ]
-        },
-        new()
-        {
-            Id = Guid.NewGuid(),
-            Title = "The Shining",
-            Authors = [authors[2].Id],
-            Chapters =
-            [
-                new BookChapter { Name = "Prologue", StartPage = 1, EndPage = 5 },
-                new BookChapter { Name = "The Interview", StartPage = 6, EndPage = 20 }
-            ]
-        }
-    };
+      Id = Guid.NewGuid(),
+      Title = "A Game of Thrones",
+      Authors = [authors[1].Id],
+      Audiobook = new Audiobook
+      {
+        Author = authors[4].Id,
+        Duration = 480
+      },
+      Chapters =
+      [
+        new BookChapter { Name = "Prologue", StartPage = 1, EndPage = 10 }
+      ]
+    },
+    new()
+    {
+      Id = Guid.NewGuid(),
+      Title = "The Shining",
+      Authors = [authors[2].Id],
+      Chapters =
+      [
+        new BookChapter { Name = "Prologue", StartPage = 1, EndPage = 5 },
+        new BookChapter { Name = "The Interview", StartPage = 6, EndPage = 20 }
+      ]
+    }
+  };
 
-    // Add each book to tracker for change monitoring
-    foreach (var book in books) mongoBookTracker.Add(book);
+  // Add each book to tracker for change monitoring
+  foreach (var book in books) mongoBookTracker.Add(book);
 
-    // Bulk insert books into database Books collection
-    await mongoDbContext.Books.BulkWriteAsync(mongoBookTracker.Commit());
+  // Bulk insert books into database Books collection
+  await mongoDbContext.Books.BulkWriteAsync(mongoBookTracker.Commit());
 }
 
 // Factory method that creates and configures the ModelBuilder with all entity mappings
 ModelBuilder Configure()
 {
-    // Create a new model builder instance that will hold all entity configurations
-    var builder = new ModelBuilder();
-    
-    // Configure the Author entity
-    builder.Entity<Author>(e =>
-    {
-        e.Property(a => a.Id).IsIdentifier();
-    });
-    
-    // Configure the Book entity, including nested tracked objects and versioning
-    builder.Entity<Book>(e =>
-    {
-        e.Property(b => b.Id).IsIdentifier();
-        e.Property(b => b.Audiobook).IsTrackedObject();
-        e.Property(b => b.Authors).IsCollection();
-        e.Property(b => b.Chapters).IsTrackedObjectCollection();
-        e.Property(b => b.LastUpdate).IsVersion();
-    });
+  // Create a new model builder instance that will hold all entity configurations
+  var builder = new ModelBuilder();
 
-    // Configure the BookChapter entity
-    builder.Entity<BookChapter>(e =>
-    {
-        e.Property(c => c.Footnotes).IsCollection();
-    });
+  // Configure the Author entity
+  builder.Entity<Author>(e => { e.Property(a => a.Id).IsIdentifier(); });
 
-    // Return the configured builder
-    return builder;
+  // Configure the Book entity, including nested tracked objects and versioning
+  builder.Entity<Book>(e =>
+  {
+    e.Property(b => b.Id).IsIdentifier();
+    e.Property(b => b.Audiobook).IsTrackedObject();
+    e.Property(b => b.Authors).IsCollection();
+    e.Property(b => b.Chapters).IsTrackedObjectCollection();
+    e.Property(b => b.LastUpdate).IsVersion();
+  });
+
+  // Configure the BookChapter entity
+  builder.Entity<BookChapter>(e => { e.Property(c => c.Footnotes).IsCollection(); });
+
+  // Return the configured builder
+  return builder;
 }

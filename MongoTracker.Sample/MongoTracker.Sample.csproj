@@ -10,13 +10,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Content Include="..\.dockerignore">
-        <Link>.dockerignore</Link>
-      </Content>
+        <Content Include="..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\MongoTracker\MongoTracker.csproj" />
+        <ProjectReference Include="..\MongoTracker\MongoTracker.csproj"/>
     </ItemGroup>
 
 </Project>

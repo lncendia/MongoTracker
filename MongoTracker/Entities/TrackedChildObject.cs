@@ -9,4 +9,4 @@ namespace MongoTracker.Entities;
 /// <param name="config">The tracking configuration describing how the object's properties should be monitored.</param>
 /// <typeparam name="T">The root entity type used for building MongoDB update definitions.</typeparam>
 internal class TrackedChildObject<T>(object entity, IReadOnlyCollection<EntityBuilder> config)
-    : TrackedNodeBase<T>(entity, config) where T : class;
+  : TrackedNodeBase<T>(entity, config) where T : class;
