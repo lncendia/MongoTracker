@@ -89,8 +89,8 @@ public partial class TrackedChildObjectCollectionTests
     trackedEntity.TrackChanges(entity);
 
     // Assert
-    var rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
-    var json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
+    BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
+    string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
     Assert.Multiple(() =>
     {
@@ -141,8 +141,8 @@ public partial class TrackedChildObjectCollectionTests
     trackedEntity.TrackChanges(entity);
 
     // Assert
-    var rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
-    var json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
+    BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
+    string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
     Assert.Multiple(() =>
     {

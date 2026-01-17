@@ -64,24 +64,24 @@ internal class TrackedCollection<T> where T : class
   public UpdateDefinition<T>? GetUpdateDefinition(string? parentPropertyName, string propertyName)
   {
     // Form the full property name (including parent properties)
-    var collectionFullName = Utils.CombineName(parentPropertyName, propertyName);
+    string? collectionFullName = Utils.CombineName(parentPropertyName, propertyName);
 
     // Create a builder for constructing the update definition
-    var updateBuilder = Builders<T>.Update;
+    UpdateDefinitionBuilder<T>? updateBuilder = Builders<T>.Update;
 
     // Check if there are elements in the current collection that aren't in the original
     // This means new elements were added to the collection
-    var someAdded = _collection.Except(_originalCollection).Any();
+    bool someAdded = _collection.Except(_originalCollection).Any();
 
     // Check if there are elements in the original collection that aren't in the current
     // This means elements were removed from the collection
-    var someRemoved = _originalCollection.Except(_collection).Any();
+    bool someRemoved = _originalCollection.Except(_collection).Any();
 
     // If there are added elements and no removed ones
     if (someAdded && !someRemoved)
     {
       // Identify elements that were added to the current collection
-      var addedItems = _collection.Except(_originalCollection);
+      IEnumerable<object> addedItems = _collection.Except(_originalCollection);
 
       // Return AddToSetEach operation to add new elements to the collection
       return updateBuilder.AddToSetEach(collectionFullName, addedItems);
@@ -91,7 +91,7 @@ internal class TrackedCollection<T> where T : class
     if (someRemoved && !someAdded)
     {
       // Identify elements that were removed from the current collection
-      var removedItems = _originalCollection.Except(_collection).ToArray();
+      object[] removedItems = _originalCollection.Except(_collection).ToArray();
 
       // Return PullAll operation to remove elements from the collection
       return updateBuilder.PullAll(collectionFullName, removedItems);

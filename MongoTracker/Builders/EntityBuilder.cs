@@ -9,14 +9,34 @@ namespace MongoTracker.Builders;
 public abstract class EntityBuilder
 {
   /// <summary>
-  /// Gets the type of the entity being configured
-  /// </summary>
-  internal abstract Type EntityType { get; }
-
-  /// <summary>
   /// Gets the list of configured properties
   /// </summary>
-  internal abstract IReadOnlyList<PropertyConfig> Properties { get; }
+  internal abstract IReadOnlyDictionary<string, PropertyConfig> Properties { get; }
+
+  /// <summary>
+  /// Gets the names of properties used as concurrency tokens
+  /// </summary>
+  internal IReadOnlyCollection<string> ConcurrencyTokenNames =>
+    field ??= Properties.Values
+      .Where(p => p.Kind == PropertyKind.ConcurrencyToken)
+      .Select(p => p.Name)
+      .ToHashSet();
+
+  /// <summary>
+  /// Gets the name of the version property, if configured
+  /// </summary>
+  internal string? VersionPropertyName =>
+    field ??= Properties.Values
+      .FirstOrDefault(p => p.Kind == PropertyKind.Version)
+      ?.Name;
+
+  /// <summary>
+  /// Gets the name of the identifier property, if configured
+  /// </summary>
+  internal string? IdentifierPropertyName =>
+    field ??= Properties.Values
+      .FirstOrDefault(p => p.Kind == PropertyKind.Identifier)
+      ?.Name;
 }
 
 /// <summary>
@@ -31,14 +51,9 @@ public class EntityBuilder<TEntity> : EntityBuilder
   private readonly Dictionary<string, PropertyConfig> _properties = new();
 
   /// <summary>
-  /// Returns the type of entity being configured
-  /// </summary>
-  internal override Type EntityType => typeof(TEntity);
-
-  /// <summary>
   /// Returns the read-only list of configured properties
   /// </summary>
-  internal override IReadOnlyList<PropertyConfig> Properties => _properties.Values.ToList();
+  internal override IReadOnlyDictionary<string, PropertyConfig> Properties => _properties;
 
   /// <summary>
   /// Configures a specific property of the entity
@@ -64,10 +79,10 @@ public class EntityBuilder<TEntity> : EntityBuilder
     if (!propInfo.CanWrite)
       throw new InvalidOperationException($"Property '{propInfo.Name}' must be writable");
 
-    var name = member.Member.Name;
+    string name = member.Member.Name;
 
     // Reuse existing property configuration if available
-    if (_properties.TryGetValue(name, out var existingConfig))
+    if (_properties.TryGetValue(name, out PropertyConfig? existingConfig))
       return new PropertyBuilder(existingConfig);
 
     // Create configuration for the property

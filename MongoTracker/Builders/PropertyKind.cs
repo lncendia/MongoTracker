@@ -28,5 +28,10 @@ public enum PropertyKind
   /// <summary>
   /// Property used for optimistic concurrency control (version field)
   /// </summary>
-  Version
+  Version,
+  
+  /// <summary>
+  /// Self-management property used for optimistic concurrency control
+  /// </summary>
+  ConcurrencyToken
 }

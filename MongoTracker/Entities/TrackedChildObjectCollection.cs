@@ -62,9 +62,9 @@ internal class TrackedChildObjectCollection<T> where T : class
   public void TrackChanges(IEnumerable<object> updatedCollection)
   {
     _collection = updatedCollection.ToList();
-    foreach (var o in _collection)
+    foreach (object? o in _collection)
     {
-      if (!_childObjects.TryGetValue(o, out var trackedObject)) continue;
+      if (!_childObjects.TryGetValue(o, out TrackedChildObject<T>? trackedObject)) continue;
       trackedObject.TrackChanges(o);
     }
   }
@@ -78,28 +78,28 @@ internal class TrackedChildObjectCollection<T> where T : class
   public UpdateDefinition<T>? GetUpdateDefinition(string? parentPropertyName, string propertyName)
   {
     // Form the full property name (including parent properties)
-    var collectionFullName = Utils.CombineName(parentPropertyName, propertyName);
+    string? collectionFullName = Utils.CombineName(parentPropertyName, propertyName);
 
     // Create builder for constructing update definition
-    var updateBuilder = Builders<T>.Update;
+    UpdateDefinitionBuilder<T>? updateBuilder = Builders<T>.Update;
 
     // Check if there are elements in current collection that aren't in original
     // This means new elements were added to the collection
-    var someAdded = _collection.Except(_originalCollection).Any();
+    bool someAdded = _collection.Except(_originalCollection).Any();
 
     // Check if there are elements in original collection that aren't in current
     // This means elements were removed from the collection
-    var someRemoved = _originalCollection.Except(_collection).Any();
+    bool someRemoved = _originalCollection.Except(_collection).Any();
 
     // Check if any elements present in both collections have been modified
     // Useful when collection elements themselves can be modified
-    var someModified = _childObjects.Any(e => e.Value.IsModified);
+    bool someModified = _childObjects.Any(e => e.Value.IsModified);
 
     // If only added elements exist (no removed or modified)
     if (someAdded && !someRemoved && !someModified)
     {
       // Identify elements added to current collection
-      var addedItems = _collection.Except(_originalCollection);
+      IEnumerable<object> addedItems = _collection.Except(_originalCollection);
 
       // Create PushEach operation to add new elements to collection
       return updateBuilder.PushEach(collectionFullName, addedItems);
@@ -109,7 +109,7 @@ internal class TrackedChildObjectCollection<T> where T : class
     if (someRemoved && !someAdded && !someModified)
     {
       // Identify elements removed from current collection
-      var removedItems = _originalCollection.Except(_collection).ToArray();
+      object[] removedItems = _originalCollection.Except(_collection).ToArray();
 
       // Create PullAll operation to remove elements from collection
       return updateBuilder.PullAll(collectionFullName, removedItems);
@@ -119,7 +119,7 @@ internal class TrackedChildObjectCollection<T> where T : class
     if (someModified && !someAdded && !someRemoved)
     {
       // Identify elements present in both collections that were modified
-      var updatedItems = _childObjects.Values
+      IEnumerable<UpdateDefinition<T>> updatedItems = _childObjects.Values
         .Select((item, index) => item.GetUpdateDefinition(collectionFullName, index.ToString()))
         .Where(item => item != null);
 
@@ -148,7 +148,7 @@ internal class TrackedChildObjectCollection<T> where T : class
   /// <param name="originalCollection">The initial collection of nested objects to track.</param>
   /// <param name="config">The tracking configuration describing how each nested object should be monitored.</param>
   public TrackedChildObjectCollection(IEnumerable<object> originalCollection,
-    IReadOnlyCollection<EntityBuilder> config)
+    IReadOnlyDictionary<Type, EntityBuilder> config)
   {
     var collection = originalCollection.ToList();
     _originalCollection = collection;

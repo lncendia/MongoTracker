@@ -48,10 +48,10 @@ public class MongoTracker<T> where T : class
   /// <returns>Tracked instance (original model).</returns>
   public T Track(T model)
   {
-    var id = _getId(model);
+    object? id = _getId(model);
 
     // If entity already exists in local cache — return existing tracked copy
-    if (_objects.TryGetValue(id, out var entity)) return entity;
+    if (_objects.TryGetValue(id, out T? entity)) return entity;
 
     // Create new tracked wrapper
     _tracked.Add(id, new TrackedEntity<T>(model, _modelBuilder.Entities));
@@ -70,7 +70,7 @@ public class MongoTracker<T> where T : class
   /// <exception cref="KeyNotFoundException">Thrown when entity with specified ID is not found.</exception>
   public void Delete(T model)
   {
-    var id = _getId(model);
+    object? id = _getId(model);
 
     // Set deletion state without removing from memory
     _tracked[id].EntityState = EntityState.Deleted;
@@ -96,7 +96,7 @@ public class MongoTracker<T> where T : class
     // Prevent tracking duplicates
     if (_objects.ContainsKey(_getId(model))) throw new ArgumentException("Entity already tracked");
 
-    var id = _getId(model);
+    object? id = _getId(model);
 
     // Register entity in tracking system
     _tracked.Add(id, new TrackedEntity<T>(model, _modelBuilder.Entities));
@@ -113,59 +113,71 @@ public class MongoTracker<T> where T : class
   public IReadOnlyCollection<WriteModel<T>> Commit()
   {
     // All entities that should be inserted
-    var added = _tracked
+    object[] added = _tracked
       .Where(s => s.Value.EntityState == EntityState.Added)
       .Select(v => v.Key)
       .ToArray();
 
     // All entities that should be deleted
-    var deleted = _tracked
+    object[] deleted = _tracked
       .Where(s => s.Value.EntityState == EntityState.Deleted)
       .Select(v => v.Key)
       .ToArray();
 
     // Entities that may have been modified
-    var probablyModified = _tracked
+    object[] probablyModified = _tracked
       .Where(s => s.Value.EntityState == EntityState.Default)
       .Select(v => v.Key)
       .ToArray();
-
-    // Get version accessor if concurrency checks are enabled
-    var versionAccessor = Utils.GetVersionAccessor<T>(_modelBuilder.Entities);
 
     // Final list of MongoDB operations
     var bulkOperations = new List<WriteModel<T>>();
 
     // INSERT operations
-    foreach (var id in added)
+    foreach (object id in added)
     {
       bulkOperations.Add(new InsertOneModel<T>(_objects[id]));
+
+      // Reset tracker state for model
+      _tracked[id].EntityState = EntityState.Default;
     }
 
     // DELETE operations
-    foreach (var id in deleted)
+    foreach (object id in deleted)
     {
+      TrackedEntity<T>? tracked = _tracked[id];
+
       // Build filter by ID
-      var filter = Builders<T>.Filter.Eq(_getIdExpression, id);
+      FilterDefinition<T>? filter = Builders<T>.Filter.Eq(_getIdExpression, id);
+
+      KeyValuePair<string, object?>? version = tracked.Version;
+      IReadOnlyList<KeyValuePair<string, object?>> tokens = tracked.ConcurrencyTokens;
 
       // Add optimistic concurrency check
-      if (versionAccessor != null)
+      if (version.HasValue)
       {
-        var entity = _objects[id];
-        var concurrencyFilter =
-          Builders<T>.Filter.Eq(versionAccessor.PropertyName, versionAccessor.GetValue(entity));
+        FilterDefinition<T>? concurrencyFilter = Builders<T>.Filter.Eq(version.Value.Key, version.Value.Value);
+        filter = Builders<T>.Filter.And(filter, concurrencyFilter);
+      }
 
+      foreach (KeyValuePair<string, object?> token in tokens)
+      {
+        FilterDefinition<T>? concurrencyFilter = Builders<T>.Filter.Eq(token.Key, token.Value);
         filter = Builders<T>.Filter.And(filter, concurrencyFilter);
       }
 
       bulkOperations.Add(new DeleteOneModel<T>(filter));
+
+      // Reset tracker state for model
+      _tracked.Remove(id);
+      _objects.Remove(id);
     }
 
     // UPDATE operations
-    foreach (var id in probablyModified)
+    foreach (object id in probablyModified)
     {
-      var tracked = _tracked[id];
-      var entity = _objects[id];
+      TrackedEntity<T>? tracked = _tracked[id];
+      T? entity = _objects[id];
 
       // Compute diff between original and current state
       tracked.TrackChanges(entity);
@@ -174,19 +186,29 @@ public class MongoTracker<T> where T : class
       if (tracked.EntityState != EntityState.Modified) continue;
 
       // Build filter by ID
-      var filter = Builders<T>.Filter.Eq(_getIdExpression, id);
+      FilterDefinition<T>? filter = Builders<T>.Filter.Eq(_getIdExpression, id);
+
+      KeyValuePair<string, object?>? version = tracked.Version;
+      IReadOnlyList<KeyValuePair<string, object?>> tokens = tracked.ConcurrencyTokens;
 
       // Add optimistic concurrency check
-      if (versionAccessor != null)
+      if (version.HasValue)
       {
-        var concurrencyFilter =
-          Builders<T>.Filter.Eq(versionAccessor.PropertyName, versionAccessor.GetValue(entity));
+        FilterDefinition<T>? concurrencyFilter = Builders<T>.Filter.Eq(version.Value.Key, version.Value.Value);
+        filter = Builders<T>.Filter.And(filter, concurrencyFilter);
+      }
 
+      foreach (KeyValuePair<string, object?> token in tokens)
+      {
+        FilterDefinition<T>? concurrencyFilter = Builders<T>.Filter.Eq(token.Key, token.Value);
         filter = Builders<T>.Filter.And(filter, concurrencyFilter);
       }
 
       // Register UPDATE operation
       bulkOperations.Add(new UpdateOneModel<T>(filter, tracked.UpdateDefinition));
+
+      // Reset tracker state for model
+      _tracked[id] = new TrackedEntity<T>(entity, _modelBuilder.Entities);
     }
 
     // Return prepared MongoDB operations

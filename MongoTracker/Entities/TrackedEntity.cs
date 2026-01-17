@@ -21,6 +21,29 @@ internal class TrackedEntity<T> : TrackedNodeBase<T> where T : class
   } = EntityState.Default;
 
   /// <summary>
+  /// Concurrency token property names with their initial values (if configured)
+  /// </summary>
+  public IReadOnlyList<KeyValuePair<string, object?>> ConcurrencyTokens =>
+    EntityConfig?.ConcurrencyTokenNames
+      .Select(k => new KeyValuePair<string, object?>(k, State[k]))
+      .ToList() ?? [];
+
+  /// <summary>
+  /// Version property name and its initial value (if configured)
+  /// </summary>
+  public KeyValuePair<string, object?>? Version
+  {
+    get
+    {
+      string? name = EntityConfig?.VersionPropertyName;
+      if (name == null)
+        return null;
+
+      return new KeyValuePair<string, object?>(name, State[name]);
+    }
+  }
+
+  /// <summary>
   /// Generates a MongoDB <see cref="UpdateDefinition{T}"/> representing all changes detected in the entity.
   /// </summary>
   /// <exception cref="InvalidOperationException">
@@ -63,7 +86,7 @@ internal class TrackedEntity<T> : TrackedNodeBase<T> where T : class
   /// </summary>
   /// <param name="entity">The entity instance to be tracked.</param>
   /// <param name="config">The configuration that describes which properties should be tracked and how.</param>
-  public TrackedEntity(T entity, IReadOnlyCollection<EntityBuilder> config) : base(entity, config)
+  public TrackedEntity(T entity, IReadOnlyDictionary<Type, EntityBuilder> config) : base(entity, config)
   {
   }
 

@@ -1,4 +1,6 @@
 ﻿using System.Collections;
+using System.Reflection;
+
 using MongoDB.Driver;
 using MongoTracker.Builders;
 
@@ -14,7 +16,7 @@ internal abstract class TrackedNodeBase<T> where T : class
   /// <summary>
   /// Stores the initial state of all tracked properties.
   /// </summary>
-  private readonly Dictionary<string, object?> _state = new();
+  protected readonly Dictionary<string, object?> State = new();
 
   /// <summary>
   /// Stores the modified values of simple properties.
@@ -37,14 +39,9 @@ internal abstract class TrackedNodeBase<T> where T : class
   private readonly Dictionary<string, TrackedChildObjectCollection<T>> _childObjectCollections = new();
 
   /// <summary>
-  /// Property metadata loaded from configuration.
+  /// Entity metadata loaded from configuration.
   /// </summary>
-  private readonly IReadOnlyList<PropertyConfig> _propertyConfigs;
-
-  /// <summary>
-  /// The name of the version property used for optimistic concurrency.
-  /// </summary>
-  private readonly string? _versionKey;
+  protected readonly EntityBuilder? EntityConfig;
 
   #endregion
 
@@ -70,14 +67,14 @@ internal abstract class TrackedNodeBase<T> where T : class
   public void TrackChanges(object updatedEntity)
   {
     // Use reflection on the updated entity to read new property values
-    var type = updatedEntity.GetType();
+    Type type = updatedEntity.GetType();
 
     // Compare each tracked property with the updated entity
-    foreach (var propName in _state.Keys)
+    foreach (string? propName in State.Keys)
     {
       // Get config for the property (its tracking mode)
-      var config = _propertyConfigs.FirstOrDefault(c => c.Name == propName);
-      var newValue = type.GetProperty(propName)!.GetValue(updatedEntity);
+      PropertyConfig? config = EntityConfig?.Properties.GetValueOrDefault(propName);
+      object? newValue = type.GetProperty(propName)!.GetValue(updatedEntity);
 
       // Delegate change detection depending on property type
       switch (config?.Kind)
@@ -113,7 +110,7 @@ internal abstract class TrackedNodeBase<T> where T : class
   private void TrackProperty(string name, object? value)
   {
     // Get original value from state
-    var oldValue = _state[name];
+    object? oldValue = State[name];
 
     // No changes if both are null
     if (oldValue == null && value == null) return;
@@ -133,7 +130,7 @@ internal abstract class TrackedNodeBase<T> where T : class
   private void TrackChildObject(string name, object? value)
   {
     // Get original nested object reference
-    var old = _state[name];
+    object? old = State[name];
 
     // New object where old was null → mark whole object as changed
     if (old == null && value != null)
@@ -163,7 +160,7 @@ internal abstract class TrackedNodeBase<T> where T : class
   private void TrackCollection(string name, object? value)
   {
     // Get original collection
-    var old = _state[name];
+    object? old = State[name];
 
     // Collection added → mark whole object as changed
     if (old == null && value != null)
@@ -193,7 +190,7 @@ internal abstract class TrackedNodeBase<T> where T : class
   private void TrackChildObjectCollection(string name, object? value)
   {
     // Get original collection of nested objects
-    var old = _state[name];
+    object? old = State[name];
 
     // Collection added
     if (old == null && value != null)
@@ -226,46 +223,50 @@ internal abstract class TrackedNodeBase<T> where T : class
   public UpdateDefinition<T> GetUpdateDefinition(string? parent, string? name)
   {
     // Create update builder root and compute full field prefix
-    var updateBuilder = Builders<T>.Update;
-    var fullName = Utils.CombineName(parent, name);
+    UpdateDefinitionBuilder<T>? updateBuilder = Builders<T>.Update;
+    string? fullName = Utils.CombineName(parent, name);
 
     // Shortcut reference
-    var update = Builders<T>.Update;
+    UpdateDefinitionBuilder<T>? update = Builders<T>.Update;
+
+    IEnumerable<KeyValuePair<string,object?>> updatesQuery = _changes;
+
+    if (EntityConfig?.VersionPropertyName != null)
+      updatesQuery = updatesQuery.Where(ch => !string.Equals(ch.Key, EntityConfig.VersionPropertyName));
 
     // Generate $set operations for modified simple properties
-    var propertyUpdates = _changes
-      .Where(ch => !string.Equals(ch.Key, _versionKey))
+    IEnumerable<UpdateDefinition<T>> propertyUpdates = updatesQuery
       .Select(ch => updateBuilder.Set(Utils.CombineName(fullName, ch.Key), ch.Value));
 
     // Generate updates for modified nested objects
-    var childObjectUpdates = _childObjects
+    IEnumerable<UpdateDefinition<T>> childObjectUpdates = _childObjects
       .Where(v => v.Value.IsModified)
       .Select(v => v.Value.GetUpdateDefinition(fullName, v.Key));
 
     // Generate updates for changed collections
-    var collectionUpdates = _collections
+    IEnumerable<UpdateDefinition<T>?> collectionUpdates = _collections
       .Where(v => v.Value.IsModified)
       .Select(v => v.Value.GetUpdateDefinition(fullName, v.Key));
 
     // Generate updates for collections of child objects
-    var childObjectCollectionUpdates = _childObjectCollections
+    IEnumerable<UpdateDefinition<T>?> childObjectCollectionUpdates = _childObjectCollections
       .Where(v => v.Value.IsModified)
       .Select(v => v.Value.GetUpdateDefinition(fullName, v.Key));
 
     // Combine all update definitions into a single MongoDB update document
-    var updates = propertyUpdates
+    IEnumerable<UpdateDefinition<T>?> updates = propertyUpdates
       .Union(childObjectUpdates)
       .Union(collectionUpdates)
       .Union(childObjectCollectionUpdates);
 
     // If a version field is configured, update it with the current date/time
-    if (_versionKey != null)
+    if (EntityConfig?.VersionPropertyName != null)
     {
       // Compute the fully qualified field name (including nesting)
-      var fieldName = Utils.CombineName(fullName, _versionKey);
+      string? fieldName = Utils.CombineName(fullName, EntityConfig.VersionPropertyName);
 
       // Generate an update that sets the version field to the current date
-      var versionUpdate = updateBuilder.CurrentDate(fieldName, type: UpdateDefinitionCurrentDateType.Date);
+      UpdateDefinition<T>? versionUpdate = updateBuilder.CurrentDate(fieldName, type: UpdateDefinitionCurrentDateType.Date);
 
       // Add the version update to the update pipeline
       updates = updates.Append(versionUpdate);
@@ -284,37 +285,32 @@ internal abstract class TrackedNodeBase<T> where T : class
   /// </summary>
   /// <param name="entity">The entity instance whose properties should be tracked.</param>
   /// <param name="config">The tracking configuration describing how each property should be treated.</param>
-  protected TrackedNodeBase(object entity, IReadOnlyCollection<EntityBuilder> config)
+  protected TrackedNodeBase(object entity, IReadOnlyDictionary<Type, EntityBuilder> config)
   {
     // Find configuration for the entity's exact type
-    var entityConfig = config.SingleOrDefault(e => e.EntityType == entity.GetType());
-    _propertyConfigs = entityConfig?.Properties ?? [];
+    EntityConfig = config.GetValueOrDefault(entity.GetType());
 
     // Get all writable + readable properties to track
-    var type = entity.GetType();
-    var properties = type.GetProperties()
+    Type type = entity.GetType();
+    IEnumerable<PropertyInfo> properties = type.GetProperties()
       .Where(p => p.CanRead && p.CanWrite);
 
     // Initialize tracking structures for each property
-    foreach (var property in properties)
+    foreach (PropertyInfo? property in properties)
     {
       // Retrieve property-specific config, if defined
-      var propConfig = _propertyConfigs.SingleOrDefault(p => p.Name == property.Name);
-      var value = property.GetValue(entity);
+      PropertyConfig? propConfig = EntityConfig?.Properties.GetValueOrDefault(property.Name);
+      object? value = property.GetValue(entity);
 
       // Skipping the ID from tracking
-      if (propConfig?.Kind == PropertyKind.Identifier)
+      if (propConfig?.Kind is PropertyKind.Identifier)
         continue;
 
       // Store the initial value in state dictionary
-      _state[property.Name] = value;
-
-      // Store the version key
-      if (propConfig?.Kind == PropertyKind.Version)
-        _versionKey = property.Name;
+      State[property.Name] = value;
 
       // Initialize nested tracked object
-      else if (propConfig?.Kind == PropertyKind.TrackedObject && value != null)
+      if (propConfig?.Kind == PropertyKind.TrackedObject && value != null)
         _childObjects[property.Name] = new TrackedChildObject<T>(value, config);
 
       // Initialize tracked collection of primitive/value types

@@ -18,10 +18,10 @@ public class ModelBuilder
   /// <returns>The entity builder for fluent configuration</returns>
   public EntityBuilder<TEntity> Entity<TEntity>(Action<EntityBuilder<TEntity>> configure)
   {
-    var type = typeof(TEntity);
+    Type type = typeof(TEntity);
 
     // If entity is already configured, reuse the existing builder
-    if (_entities.TryGetValue(type, out var existing))
+    if (_entities.TryGetValue(type, out EntityBuilder? existing))
     {
       var builder = (EntityBuilder<TEntity>)existing;
       configure(builder);
@@ -38,5 +38,5 @@ public class ModelBuilder
   /// <summary>
   /// Gets all configured entities
   /// </summary>
-  internal IReadOnlyCollection<EntityBuilder> Entities => _entities.Values;
+  internal IReadOnlyDictionary<Type, EntityBuilder> Entities => _entities;
 }

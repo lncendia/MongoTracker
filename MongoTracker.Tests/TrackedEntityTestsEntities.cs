@@ -8,7 +8,6 @@ public partial class TrackedEntityTests
     public string? Name { get; set; }
     public int? Age { get; set; }
     public decimal? Money { get; set; }
-
     public DateTime? LastUpdated { get; set; }
   }
 }

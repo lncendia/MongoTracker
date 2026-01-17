@@ -22,7 +22,7 @@ var context = new MongoDbContext(mongoClient, "BookApp");
 await context.EnsureCreatedAsync();
 
 // Build the model configuration during application startup
-var config = Configure();
+ModelBuilder config = Configure();
 
 // Initialize database with sample data (authors, books etc.)
 await InitializeDatabaseAsync(context, config);
@@ -31,24 +31,24 @@ await InitializeDatabaseAsync(context, config);
 var tracker = new MongoTracker<Book>(config);
 
 // Find author "Jim Dale" ID in Authors collection
-var jimDaleId = await context.Authors
+Guid jimDaleId = await context.Authors
   .AsQueryable()
   .Where(a => a.Name == "Jim Dale")
   .Select(a => a.Id)
   .FirstAsync();
 
 // Find "A Game of Thrones" book in Books collection
-var gameOfThrones = await context.Books
+Book? gameOfThrones = await context.Books
   .AsQueryable()
   .FirstAsync(b => b.Title == "A Game of Thrones");
 
 // Find "The Shining" book in Books collection
-var shining = await context.Books
+Book? shining = await context.Books
   .AsQueryable()
   .FirstAsync(b => b.Title == "The Shining");
 
 // Find "Harry Potter and the Philosopher's Stone" book in Books collection
-var harryPotter = await context.Books
+Book? harryPotter = await context.Books
   .AsQueryable()
   .FirstAsync(b => b.Title == "Harry Potter and the Philosopher's Stone");
 
@@ -112,10 +112,12 @@ tracker.Delete(harryPotter);
 //    - Delete document from Books collection
 //    Example query:
 //    db.Books.deleteOne({ _id: UUID("..."), LastModified: ISODate("...") })
-var update = tracker.Commit();
+IReadOnlyCollection<WriteModel<Book>> update = tracker.Commit();
 
 // Apply all changes (inserts, updates, deletes) to database
-await context.Books.BulkWriteAsync(update);
+BulkWriteResult<Book>? result = await context.Books.BulkWriteAsync(update);
+
+Console.WriteLine($"Modified: {result.ModifiedCount}, Deleted: {result.DeletedCount}");
 
 // Exit program
 return;
@@ -137,7 +139,7 @@ async Task InitializeDatabaseAsync(MongoDbContext mongoDbContext, ModelBuilder c
   };
 
   // Add each author to tracker for change monitoring
-  foreach (var author in authors) mongoAuthorTracker.Add(author);
+  foreach (Author author in authors) mongoAuthorTracker.Add(author);
 
   // Bulk insert authors into database Authors collection
   await mongoDbContext.Authors.BulkWriteAsync(mongoAuthorTracker.Commit());
@@ -193,7 +195,7 @@ async Task InitializeDatabaseAsync(MongoDbContext mongoDbContext, ModelBuilder c
   };
 
   // Add each book to tracker for change monitoring
-  foreach (var book in books) mongoBookTracker.Add(book);
+  foreach (Book book in books) mongoBookTracker.Add(book);
 
   // Bulk insert books into database Books collection
   await mongoDbContext.Books.BulkWriteAsync(mongoBookTracker.Commit());

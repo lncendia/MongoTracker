@@ -74,4 +74,14 @@ public class PropertyBuilder(PropertyConfig config)
     Config.Kind = PropertyKind.Version;
     return this;
   }
+
+  /// <summary>
+  /// Marks the property as self-management concurrency token field for optimistic concurrency control
+  /// </summary>
+  /// <returns>The property builder for fluent configuration</returns>
+  public PropertyBuilder IsConcurrencyToken()
+  {
+    Config.Kind = PropertyKind.ConcurrencyToken;
+    return this;
+  }
 }

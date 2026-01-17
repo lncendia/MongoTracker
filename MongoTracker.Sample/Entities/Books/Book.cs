@@ -31,7 +31,8 @@ public class Book
   public List<BookChapter> Chapters { get; set; } = [];
 
   /// <summary>
-  /// 
+  /// Timestamp used for optimistic concurrency control
   /// </summary>
   public DateTime LastUpdate { get; set; }
+
 }

@@ -28,6 +28,7 @@ public partial class TrackedEntityTests
     {
       b.Property(e => e.Id).IsIdentifier();
       b.Property(e => e.LastUpdated).IsVersion();
+      b.Property(e => e.Name).IsConcurrencyToken();
     });
   }
 
@@ -54,8 +55,8 @@ public partial class TrackedEntityTests
     trackedEntity.TrackChanges(entity);
 
     // Assert
-    var rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
-    var json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
+    BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
+    string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
     Assert.Multiple(() =>
     {
