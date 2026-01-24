@@ -358,11 +358,17 @@ internal abstract class TrackedNodeBase<T> where T : class
 
       // Initialize tracked collection of primitive/value types
       else if (propConfig?.Kind == PropertyKind.Collection && value is IEnumerable enumerable)
-        _collections[property.Name] = new TrackedCollection<T>(enumerable.Cast<object>());
+      {
+        Type elementType = property.PropertyType.GetGenericArguments()[0];
+        _collections[property.Name] = new TrackedCollection<T>(enumerable, elementType);
+      }
 
       // Initialize tracked collection of nested objects
       else if (propConfig?.Kind == PropertyKind.TrackedObjectCollection && value is IEnumerable col)
-        _childObjectCollections[property.Name] = new TrackedChildObjectCollection<T>(col.Cast<object>(), config);
+      {
+        Type elementType = property.PropertyType.GetGenericArguments()[0];
+        _childObjectCollections[property.Name] = new TrackedChildObjectCollection<T>(col, elementType, config);
+      }
     }
   }
 

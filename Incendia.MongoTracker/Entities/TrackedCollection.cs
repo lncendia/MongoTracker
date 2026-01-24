@@ -1,4 +1,6 @@
-﻿using MongoDB.Driver;
+﻿using System.Collections;
+
+using MongoDB.Driver;
 
 namespace Incendia.MongoTracker.Entities;
 
@@ -9,6 +11,11 @@ namespace Incendia.MongoTracker.Entities;
 internal class TrackedCollection<T> where T : class
 {
   #region Fields
+
+  /// <summary>
+  /// The element type of the tracked collection.
+  /// </summary>
+  private readonly Type _collectionType;
 
   /// <summary>
   /// The original collection of value objects storing the state before changes.
@@ -50,9 +57,9 @@ internal class TrackedCollection<T> where T : class
   /// Updates the tracked collection with a new set of values.
   /// </summary>
   /// <param name="updatedCollection">The new collection values to be tracked.</param>
-  public void TrackChanges(IEnumerable<object> updatedCollection)
+  public void TrackChanges(IEnumerable updatedCollection)
   {
-    _collection = updatedCollection.ToList();
+    _collection = updatedCollection.Cast<object>().ToList();
   }
 
   /// <summary>
@@ -101,7 +108,7 @@ internal class TrackedCollection<T> where T : class
     if (someAdded && someRemoved)
     {
       // In this case, it's simpler to completely replace the collection with the new value
-      return updateBuilder.Set(collectionFullName, _collection);
+      return updateBuilder.Set(collectionFullName, _collection.ToTypedList(_collectionType));
     }
 
     // If no changes, return null
@@ -116,11 +123,13 @@ internal class TrackedCollection<T> where T : class
   /// Initializes a new tracked collection by capturing the initial set of items.
   /// </summary>
   /// <param name="originalCollection">The initial collection of items to be tracked.</param>
-  public TrackedCollection(IEnumerable<object> originalCollection)
+  /// <param name="collectionType">The element type of the tracked collection.</param>
+  public TrackedCollection(IEnumerable originalCollection, Type collectionType)
   {
-    var collection = originalCollection.ToList();
+    var collection = originalCollection.Cast<object>().ToList();
     _originalCollection = collection;
     _collection = collection;
+    _collectionType = collectionType;
   }
 
   #endregion

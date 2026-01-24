@@ -251,7 +251,6 @@ public class MongoTracker<T> where T : class
     TrackAddedIfAcknowledged(result);
 
     return result;
-
   }
 
   /// <summary>

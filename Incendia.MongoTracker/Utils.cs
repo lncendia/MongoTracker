@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Collections;
+using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -75,9 +76,25 @@ internal static class Utils
     return Expression.Lambda<Func<T, object>>(body, param);
   }
 
-  /// <param name="property">
-  /// The <see cref="PropertyInfo"/> to inspect.
-  /// </param>
+  extension(IReadOnlyCollection<object> source)
+  {
+    /// <summary>
+    /// Converts a sequence of objects into a strongly-typed <see cref="List{T}"/> of the specified element type.
+    /// </summary>
+    /// <param name="elementType">The type of elements for the resulting list.</param>
+    /// <returns>A typed <see cref="List{T}"/> containing all items from <paramref name="source"/>.</returns>
+    public object ToTypedList(Type elementType)
+    {
+      Type listType = typeof(List<>).MakeGenericType(elementType);
+      var list = (IList)Activator.CreateInstance(listType, args: source.Count);
+
+      foreach (object? item in source)
+        list.Add(item);
+
+      return list;
+    }
+  }
+
   extension(PropertyInfo property)
   {
     /// <summary>

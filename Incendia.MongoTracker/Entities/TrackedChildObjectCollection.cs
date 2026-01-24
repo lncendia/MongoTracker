@@ -1,4 +1,6 @@
-﻿using Incendia.MongoTracker.Builders;
+﻿using System.Collections;
+
+using Incendia.MongoTracker.Builders;
 
 using MongoDB.Driver;
 
@@ -11,6 +13,11 @@ namespace Incendia.MongoTracker.Entities;
 internal class TrackedChildObjectCollection<T> where T : class
 {
   #region Fields
+
+  /// <summary>
+  /// The element type of the tracked collection.
+  /// </summary>
+  private readonly Type _collectionType;
 
   /// <summary>
   /// The original collection of value objects storing the state before changes.
@@ -60,9 +67,9 @@ internal class TrackedChildObjectCollection<T> where T : class
   /// Updates the tracked collection with a new set of values.
   /// </summary>
   /// <param name="updatedCollection">The new collection of objects to track.</param>
-  public void TrackChanges(IEnumerable<object> updatedCollection)
+  public void TrackChanges(IEnumerable updatedCollection)
   {
-    _collection = updatedCollection.ToList();
+    _collection = updatedCollection.Cast<object>().ToList();
     foreach (object? o in _collection)
     {
       if (!_childObjects.TryGetValue(o, out TrackedChildObject<T>? trackedObject)) continue;
@@ -132,7 +139,7 @@ internal class TrackedChildObjectCollection<T> where T : class
     if (someAdded || someRemoved || someModified)
     {
       // In this case, it's simplest to completely replace the collection with new value
-      return updateBuilder.Set(collectionFullName, _collection);
+      return updateBuilder.Set(collectionFullName, _collection.ToTypedList(_collectionType));
     }
 
     // If no changes in collection, return null
@@ -147,14 +154,16 @@ internal class TrackedChildObjectCollection<T> where T : class
   /// Initializes a new tracked child object collection, capturing the initial set of objects.
   /// </summary>
   /// <param name="originalCollection">The initial collection of nested objects to track.</param>
+  /// <param name="collectionType">The element type of the tracked collection.</param>
   /// <param name="config">The tracking configuration describing how each nested object should be monitored.</param>
-  public TrackedChildObjectCollection(IEnumerable<object> originalCollection,
+  public TrackedChildObjectCollection(IEnumerable originalCollection, Type collectionType,
     IReadOnlyDictionary<Type, EntityBuilder> config)
   {
-    var collection = originalCollection.ToList();
+    var collection = originalCollection.Cast<object>().ToList();
     _originalCollection = collection;
     _collection = collection;
     _childObjects = collection.ToDictionary(v => v, v => new TrackedChildObject<T>(v, config));
+    _collectionType = collectionType;
   }
 
   #endregion
