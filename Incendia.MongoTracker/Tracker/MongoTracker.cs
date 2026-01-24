@@ -90,7 +90,11 @@ public class MongoTracker<T> where T : class
   /// <returns>The entity with the specified ID.</returns>
   public virtual T Get(object id)
   {
-    return _objects[id];
+    if (_objects.TryGetValue(id, out T? model))
+      return model;
+
+    T? inserted = _added.FirstOrDefault(o => _getId(o).Equals(id));
+    return inserted ?? throw new KeyNotFoundException();
   }
 
   /// <summary>
