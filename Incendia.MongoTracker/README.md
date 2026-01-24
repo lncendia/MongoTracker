@@ -1,8 +1,8 @@
 # Incendia.MongoTracker
 
-[![NuGet](https://img.shields.io/nuget/v/Incendia.MongoTracker.svg)](https://www.nuget.org/packages/Incendia.MongoTracker)
-
-**MongoTracker** is a lightweight change tracker for MongoDB Client. It **does not replace MongoDB.Driver**; instead, it extends it by automatically tracking entity changes, generating atomic update operations, and supporting bulk writes. MongoTracker works seamlessly with nested objects, collections, and versioned fields.
+**MongoTracker** is a lightweight change tracker for MongoDB Client. It **does not replace MongoDB.Driver**; instead, it
+extends it by automatically tracking entity changes, generating atomic update operations, and supporting bulk writes.
+MongoTracker works seamlessly with nested objects, collections, and versioned fields.
 
 ---
 
@@ -94,7 +94,6 @@ var result = await tracker.SaveChangesAsync(context.Books);
 
 ---
 
-
 ## Sample Project
 
 The repository includes a sample project, `MongoTracker.Sample`, demonstrating the library's core features.
@@ -106,8 +105,10 @@ MongoTracker is distributed under the MIT License.
 
 ## Feedback
 
-If you have questions, suggestions, or encounter issues, please create an [issue](https://github.com/lncendia/MongoTracker/issues) in the project repository.
+If you have questions, suggestions, or encounter issues, please create
+an [issue](https://github.com/lncendia/MongoTracker/issues) in the project repository.
 
 ---
 
-**MongoTracker** is a simple yet powerful tool for MongoDB that helps you efficiently manage data in your application. Try it in your project and experience its convenience and performance!
+**MongoTracker** is a simple yet powerful tool for MongoDB that helps you efficiently manage data in your application.
+Try it in your project and experience its convenience and performance!

@@ -1,15 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoTracker.Sample", "MongoTracker.Sample\MongoTracker.Sample.csproj", "{F283D7C8-BCD7-4FAE-8A60-38B3AB62106E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Incendia.MongoTracker.Sample", "Incendia.MongoTracker.Sample\Incendia.MongoTracker.Sample.csproj", "{F283D7C8-BCD7-4FAE-8A60-38B3AB62106E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoTracker", "MongoTracker\MongoTracker.csproj", "{3F766676-AED8-4906-BC6F-8AEEB295D9F4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Incendia.MongoTracker", "Incendia.MongoTracker\Incendia.MongoTracker.csproj", "{3F766676-AED8-4906-BC6F-8AEEB295D9F4}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{08574DF3-93B0-47B5-962C-87BE9D608E4C}"
 	ProjectSection(SolutionItems) = preProject
 		compose.yaml = compose.yaml
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MongoTracker.Tests", "MongoTracker.Tests\MongoTracker.Tests.csproj", "{EEE666C4-5A65-4295-852A-CCAF5879CE4C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Incendia.MongoTracker.Tests", "Incendia.MongoTracker.Tests\Incendia.MongoTracker.Tests.csproj", "{EEE666C4-5A65-4295-852A-CCAF5879CE4C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
