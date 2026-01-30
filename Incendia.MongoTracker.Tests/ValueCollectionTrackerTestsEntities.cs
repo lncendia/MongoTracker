@@ -1,6 +1,6 @@
 ﻿namespace Incendia.MongoTracker.Tests;
 
-public partial class TrackedCollectionTests
+public partial class ValueCollectionTrackerTests
 {
   public class TestEntity
   {

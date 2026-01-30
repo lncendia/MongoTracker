@@ -10,7 +10,7 @@ MongoTracker works seamlessly with nested objects, collections, and versioned fi
 
 * **Change Tracking:** Automatically detects changes in fields, nested objects, and collections.
 * **Atomic Operations:** Generates minimal `$set`, `$push`, `$pull`, and `$currentDate` operations.
-* **Collections & Nested Objects:** Supports `IsTrackedObject()`, `IsCollection()`, `IsTrackedObjectCollection()`.
+* **Collections & Nested Objects:** Supports `IsChild()`, `IsCollection()`, `IsChildCollection()`.
 * **Versioning:** Automatically updates versioned fields (`IsVersion()`).
 * **Compatibility:** Works on top of standard `IMongoCollection<T>`.
 
@@ -34,9 +34,9 @@ var config = new ModelBuilder();
 config.Entity<Book>(e =>
 {
     e.Property(b => b.Id).IsIdentifier();
-    e.Property(b => b.Audiobook).IsTrackedObject();
-    e.Property(b => b.Authors).IsCollection();
-    e.Property(b => b.Chapters).IsTrackedObjectCollection();
+    e.Property(b => b.Audiobook).IsChild();
+    e.Property(b => b.Authors).IsSet();
+    e.Property(b => b.Chapters).IsTrackedSet();
     e.Property(b => b.LastUpdate).IsVersion();
 });
 ```
@@ -97,7 +97,7 @@ var result = await tracker.SaveChangesAsync(context.Books);
 ## Sample Project
 
 The repository includes a sample project, `MongoTracker.Sample`, demonstrating the library's core features.
-For a real-world usage example, see [Overoom](https://github.com/lncendia/Overoom).
+For a real-world usage example, see [Incendia.Identity.Mongo](https://github.com/lncendia/Identity.Mongo) or [Overoom](https://github.com/lncendia/Overoom).
 
 ## License
 

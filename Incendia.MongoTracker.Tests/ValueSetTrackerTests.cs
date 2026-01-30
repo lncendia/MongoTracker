@@ -3,13 +3,14 @@ using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Incendia.MongoTracker.Builders;
-using Incendia.MongoTracker.Entities;
+using Incendia.MongoTracker.Entities.Nodes;
+using Incendia.MongoTracker.Enums;
 
 // ReSharper disable InconsistentNaming
 
 namespace Incendia.MongoTracker.Tests;
 
-public partial class TrackedCollectionTests
+public partial class ValueSetTrackerTests
 {
   private ModelBuilder _builder = null!;
 
@@ -18,16 +19,16 @@ public partial class TrackedCollectionTests
     BsonSerializer.SerializerRegistry);
 
   // Expected JSON results for assertions
-  private const string SetCollections_OnRootAndChildEntities_GeneratesCorrectSetUpdateEtalonJson =
+  private const string SetSets_OnRootAndChildEntities_GeneratesCorrectSetUpdateEtalonJson =
     "{ \"$set\" : { \"Tags\" : [\"First\", \"Second\"], \"Child.Tags\" : [\"First\", \"Second\"] } }";
 
-  private const string AddItems_ToCollections_GeneratesCorrectPushUpdateEtalonJson =
-    "{ \"$addToSet\" : { \"Child.Tags\" : \"Third\", \"Tags\" : \"Third\" } }";
+  private const string AddItems_ToSets_GeneratesCorrectPushUpdateEtalonJson =
+    "{ \"$push\" : { \"Child.Tags\" : \"Third\", \"Tags\" : \"Third\" } }";
 
-  private const string RemoveItems_FromCollections_GeneratesCorrectPullUpdateEtalonJson =
+  private const string RemoveItems_FromSets_GeneratesCorrectPullUpdateEtalonJson =
     "{ \"$pull\" : { \"Child.Tags\" : \"Second\", \"Tags\" : \"Second\" } }";
 
-  private const string MixedOperations_OnCollections_GeneratesCorrectSetUpdateEtalonJson =
+  private const string MixedOperations_OnSets_GeneratesCorrectSetUpdateEtalonJson =
     "{ \"$set\" : { \"Child.Tags\" : [\"First\", \"Third\"], \"Tags\" : [\"First\", \"Third\"] } }";
 
   [OneTimeSetUp]
@@ -37,21 +38,21 @@ public partial class TrackedCollectionTests
     _builder.Entity<TestEntity>(b =>
     {
       b.Property(e => e.Id).IsIdentifier();
-      b.Property(e => e.Child).IsTrackedObject();
-      b.Property(e => e.Tags).IsCollection();
+      b.Property(e => e.Child).IsChild();
+      b.Property(e => e.Tags).IsSet();
     });
     _builder.Entity<ChildTestEntity>(b =>
     {
-      b.Property(e => e.Child).IsTrackedObject();
-      b.Property(e => e.Tags).IsCollection();
+      b.Property(e => e.Child).IsChild();
+      b.Property(e => e.Tags).IsSet();
     });
   }
 
   /// <summary>
-  /// Tests that setting collections on both root entity and child object generates correct $set update
+  /// Tests that setting sets on both root entity and child object generates correct $set update
   /// </summary>
   [Test]
-  public void SetCollections_OnRootAndChildEntities_GeneratesCorrectSetUpdate()
+  public void SetSets_OnRootAndChildEntities_GeneratesCorrectSetUpdate()
   {
     // Arrange
     var entity = new TestEntity
@@ -59,7 +60,7 @@ public partial class TrackedCollectionTests
       Id = 1,
       Child = new ChildTestEntity()
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Tags = ["First", "Second"];
@@ -70,18 +71,18 @@ public partial class TrackedCollectionTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
-      Assert.That(json, Is.EqualTo(SetCollections_OnRootAndChildEntities_GeneratesCorrectSetUpdateEtalonJson));
-    });
+      Assert.That(json, Is.EqualTo(SetSets_OnRootAndChildEntities_GeneratesCorrectSetUpdateEtalonJson));
+    }
   }
 
   /// <summary>
-  /// Tests that adding items to existing collections generates correct $push update
+  /// Tests that adding items to existing sets generates correct $push update
   /// </summary>
   [Test]
-  public void AddItems_ToCollections_GeneratesCorrectPushUpdate()
+  public void AddItems_ToSets_GeneratesCorrectPushUpdate()
   {
     // Arrange
     var entity = new TestEntity
@@ -93,7 +94,7 @@ public partial class TrackedCollectionTests
         Tags = ["First", "Second"]
       }
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Tags.Add("Third");
@@ -104,18 +105,18 @@ public partial class TrackedCollectionTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
-      Assert.That(json, Is.EqualTo(AddItems_ToCollections_GeneratesCorrectPushUpdateEtalonJson));
-    });
+      Assert.That(json, Is.EqualTo(AddItems_ToSets_GeneratesCorrectPushUpdateEtalonJson));
+    }
   }
 
   /// <summary>
-  /// Tests that removing items from collections generates correct $pull update
+  /// Tests that removing items from sets generates correct $pull update
   /// </summary>
   [Test]
-  public void RemoveItems_FromCollections_GeneratesCorrectPullUpdate()
+  public void RemoveItems_FromSets_GeneratesCorrectPullUpdate()
   {
     // Arrange
     var entity = new TestEntity
@@ -127,7 +128,7 @@ public partial class TrackedCollectionTests
         Tags = ["First", "Second"]
       }
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Tags.Remove("Second");
@@ -138,18 +139,18 @@ public partial class TrackedCollectionTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
-      Assert.That(json, Is.EqualTo(RemoveItems_FromCollections_GeneratesCorrectPullUpdateEtalonJson));
-    });
+      Assert.That(json, Is.EqualTo(RemoveItems_FromSets_GeneratesCorrectPullUpdateEtalonJson));
+    }
   }
 
   /// <summary>
-  /// Tests that mixed add and remove operations on collections generate correct $set update with final state
+  /// Tests that mixed add and remove operations on sets generate correct $set update with final state
   /// </summary>
   [Test]
-  public void MixedOperations_OnCollections_GeneratesCorrectSetUpdate()
+  public void MixedOperations_OnSets_GeneratesCorrectSetUpdate()
   {
     // Arrange
     var entity = new TestEntity
@@ -161,7 +162,7 @@ public partial class TrackedCollectionTests
         Tags = ["First", "Second"]
       }
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Tags.Add("Third");
@@ -174,18 +175,18 @@ public partial class TrackedCollectionTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
-      Assert.That(json, Is.EqualTo(MixedOperations_OnCollections_GeneratesCorrectSetUpdateEtalonJson));
-    });
+      Assert.That(json, Is.EqualTo(MixedOperations_OnSets_GeneratesCorrectSetUpdateEtalonJson));
+    }
   }
 
   /// <summary>
-  /// Tests that replacing collections with new arrays generates correct $set update with final state
+  /// Tests that replacing sets with new arrays generates correct $set update with final state
   /// </summary>
   [Test]
-  public void ReplaceCollections_WithNewArrays_GeneratesCorrectSetUpdate()
+  public void ReplaceSets_WithNewArrays_GeneratesCorrectSetUpdate()
   {
     // Arrange
     var entity = new TestEntity
@@ -197,7 +198,7 @@ public partial class TrackedCollectionTests
         Tags = ["First", "Second"]
       }
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Tags = ["First", "Second", "Third"];
@@ -208,10 +209,10 @@ public partial class TrackedCollectionTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
-      Assert.That(json, Is.EqualTo(AddItems_ToCollections_GeneratesCorrectPushUpdateEtalonJson));
-    });
+      Assert.That(json, Is.EqualTo(AddItems_ToSets_GeneratesCorrectPushUpdateEtalonJson));
+    }
   }
 }

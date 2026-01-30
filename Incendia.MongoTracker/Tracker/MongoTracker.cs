@@ -1,7 +1,8 @@
 ﻿using System.Linq.Expressions;
 
 using Incendia.MongoTracker.Builders;
-using Incendia.MongoTracker.Entities;
+using Incendia.MongoTracker.Entities.Nodes;
+using Incendia.MongoTracker.Enums;
 
 using MongoDB.Driver;
 
@@ -32,7 +33,7 @@ public class MongoTracker<T> where T : class
   /// <summary>
   /// Tracks all internal states and changes for each entity
   /// </summary>
-  private readonly Dictionary<object, TrackedEntity<T>> _tracked = new();
+  private readonly Dictionary<object, EntityTracker<T>> _tracked = new();
 
   /// <summary>
   /// Stores original entity instances exposed to the user
@@ -61,7 +62,7 @@ public class MongoTracker<T> where T : class
     if (_objects.TryGetValue(id, out T? entity)) return entity;
 
     // Create new tracked wrapper
-    _tracked.Add(id, new TrackedEntity<T>(model, _modelBuilder.Entities));
+    _tracked.Add(id, new EntityTracker<T>(model, _modelBuilder.Entities));
 
     // Cache original object for future access
     _objects.Add(id, model);
@@ -139,7 +140,7 @@ public class MongoTracker<T> where T : class
     // DELETE operations
     foreach (object id in deleted)
     {
-      TrackedEntity<T>? tracked = _tracked[id];
+      EntityTracker<T>? tracked = _tracked[id];
 
       // Build filter by ID
       FilterDefinition<T>? filter = Builders<T>.Filter.Eq(_getIdExpression, id);
@@ -170,7 +171,7 @@ public class MongoTracker<T> where T : class
     // UPDATE operations
     foreach (object id in probablyModified)
     {
-      TrackedEntity<T>? tracked = _tracked[id];
+      EntityTracker<T>? tracked = _tracked[id];
       T? entity = _objects[id];
 
       // Compute diff between original and current state
@@ -202,7 +203,7 @@ public class MongoTracker<T> where T : class
       bulkOperations.Add(new UpdateOneModel<T>(filter, tracked.UpdateDefinition));
 
       // Reset tracker state for model
-      _tracked[id] = new TrackedEntity<T>(entity, _modelBuilder.Entities);
+      _tracked[id] = new EntityTracker<T>(entity, _modelBuilder.Entities);
     }
 
     // Return prepared MongoDB operations

@@ -1,6 +1,8 @@
 ﻿using System.Linq.Expressions;
 using System.Reflection;
 
+using Incendia.MongoTracker.Enums;
+
 namespace Incendia.MongoTracker.Builders;
 
 /// <summary>

@@ -3,13 +3,14 @@ using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Incendia.MongoTracker.Builders;
-using Incendia.MongoTracker.Entities;
+using Incendia.MongoTracker.Entities.Nodes;
+using Incendia.MongoTracker.Enums;
 
 // ReSharper disable InconsistentNaming
 
 namespace Incendia.MongoTracker.Tests;
 
-public partial class TrackedChildObjectCollectionTests
+public partial class ChildSetTrackerTests
 {
   private ModelBuilder _builder = null!;
 
@@ -19,10 +20,10 @@ public partial class TrackedChildObjectCollectionTests
 
   // Expected JSON results for assertions
   private const string ModifyNestedObjects_InCollection_GeneratesCorrectIndexedUpdatesEtalonJson =
-    "{ \"$set\" : { \"Children.0.Name\" : \"Egor\", \"Children.0.Child.Name\" : \"Kirill\", \"Children.0.Children.0.Name\" : \"Misha\", \"Children.0.Children.0.Child.Name\" : \"Oleg\" }, \"$addToSet\" : { \"Children.0.Tags\" : \"Second\", \"Children.0.Children.0.Tags\" : \"First\" } }";
+    "{ \"$set\" : { \"Children.0.Name\" : \"Egor\", \"Children.0.Child.Name\" : \"Kirill\", \"Children.0.Children.0.Name\" : \"Misha\", \"Children.0.Children.0.Child.Name\" : \"Oleg\" }, \"$push\" : { \"Children.0.Children.0.Tags\" : \"First\", \"Children.0.Tags\" : \"Second\" } }";
 
   private const string ModifyLastItem_InCollection_GeneratesCorrectIndexedUpdatesEtalonJson =
-    "{ \"$set\" : { \"Children.1.Name\" : \"Egor\", \"Children.1.Child.Name\" : \"Kirill\" }, \"$addToSet\" : { \"Children.1.Tags\" : \"First\" } }";
+    "{ \"$set\" : { \"Children.1.Name\" : \"Egor\", \"Children.1.Child.Name\" : \"Kirill\" }, \"$push\" : { \"Children.1.Tags\" : \"First\" } }";
 
   [OneTimeSetUp]
   public void Initialize()
@@ -31,13 +32,13 @@ public partial class TrackedChildObjectCollectionTests
     _builder.Entity<TestEntity>(b =>
     {
       b.Property(e => e.Id).IsIdentifier();
-      b.Property(e => e.Children).IsTrackedObjectCollection();
+      b.Property(e => e.Children).IsTrackedSet();
     });
     _builder.Entity<ChildTestEntity>(b =>
     {
-      b.Property(e => e.Child).IsTrackedObject();
-      b.Property(e => e.Tags).IsCollection();
-      b.Property(e => e.Children).IsTrackedObjectCollection();
+      b.Property(e => e.Child).IsChild();
+      b.Property(e => e.Tags).IsSet();
+      b.Property(e => e.Children).IsTrackedSet();
     });
   }
 
@@ -77,7 +78,7 @@ public partial class TrackedChildObjectCollectionTests
         }
       ]
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Children.First().Name = "Egor";
@@ -92,11 +93,11 @@ public partial class TrackedChildObjectCollectionTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json, Is.EqualTo(ModifyNestedObjects_InCollection_GeneratesCorrectIndexedUpdatesEtalonJson));
-    });
+    }
   }
 
   /// <summary>
@@ -132,7 +133,7 @@ public partial class TrackedChildObjectCollectionTests
         }
       ]
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Children.Last().Name = "Egor";
@@ -144,10 +145,10 @@ public partial class TrackedChildObjectCollectionTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json, Is.EqualTo(ModifyLastItem_InCollection_GeneratesCorrectIndexedUpdatesEtalonJson));
-    });
+    }
   }
 }

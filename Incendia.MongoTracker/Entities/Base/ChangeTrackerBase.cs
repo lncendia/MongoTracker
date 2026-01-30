@@ -2,15 +2,18 @@
 using System.Reflection;
 
 using Incendia.MongoTracker.Builders;
+using Incendia.MongoTracker.Entities.Collections;
+using Incendia.MongoTracker.Entities.Nodes;
+using Incendia.MongoTracker.Enums;
 
 using MongoDB.Driver;
 
-namespace Incendia.MongoTracker.Entities;
+namespace Incendia.MongoTracker.Entities.Base;
 
 /// <summary>
 /// Base class that tracks changes of an entity’s properties, nested objects, and collections.
 /// </summary>
-internal abstract class TrackedNodeBase<T> where T : class
+internal abstract class ChangeTrackerBase<T> where T : class
 {
   #region Fields
 
@@ -27,17 +30,12 @@ internal abstract class TrackedNodeBase<T> where T : class
   /// <summary>
   /// Stores tracked nested objects (single object).
   /// </summary>
-  private readonly Dictionary<string, TrackedChildObject<T>> _childObjects = new();
+  private readonly Dictionary<string, ChildTracker<T>> _childObjects = new();
 
   /// <summary>
   /// Stores tracked primitive or value-type collections.
   /// </summary>
-  private readonly Dictionary<string, TrackedCollection<T>> _collections = new();
-
-  /// <summary>
-  /// Stores tracked collections of nested objects.
-  /// </summary>
-  private readonly Dictionary<string, TrackedChildObjectCollection<T>> _childObjectCollections = new();
+  private readonly Dictionary<string, CollectionTrackerBase<T>> _collections = new();
 
   /// <summary>
   /// Entity metadata loaded from configuration.
@@ -86,8 +84,7 @@ internal abstract class TrackedNodeBase<T> where T : class
   /// </summary>
   public bool IsModified => _changes.Count > 0
     || _childObjects.Values.Any(v => v.IsModified)
-    || _collections.Values.Any(v => v.IsModified)
-    || _childObjectCollections.Values.Any(v => v.IsModified);
+    || _collections.Values.Any(v => v.IsModified);
 
   #endregion
 
@@ -122,16 +119,14 @@ internal abstract class TrackedNodeBase<T> where T : class
         case PropertyKind.Identifier:
           break;
 
-        case PropertyKind.TrackedObject:
+        case PropertyKind.Child:
           TrackChildObject(propName, newValue);
           break;
 
+        case PropertyKind.Set:
         case PropertyKind.Collection:
+        case PropertyKind.TrackedSet:
           TrackCollection(propName, newValue);
-          break;
-
-        case PropertyKind.TrackedObjectCollection:
-          TrackChildObjectCollection(propName, newValue);
           break;
 
         default:
@@ -201,14 +196,14 @@ internal abstract class TrackedNodeBase<T> where T : class
     // Get original collection
     object? old = _state[name];
 
-    // Collection added → mark whole object as changed
+    // Set added → mark whole object as changed
     if (old == null && value != null)
     {
       _changes[name] = value;
       return;
     }
 
-    // Collection removed → record null
+    // Set removed → record null
     if (old != null && value == null)
     {
       _changes[name] = null;
@@ -218,37 +213,7 @@ internal abstract class TrackedNodeBase<T> where T : class
 
     // Existing collection updated → track item-level changes
     if (value is IEnumerable e)
-      _collections[name].TrackChanges(e.Cast<object>());
-  }
-
-  /// <summary>
-  /// Tracks changes in a collection of nested tracked objects.
-  /// </summary>
-  /// <param name="name">The name of the tracked object collection property.</param>
-  /// <param name="value">The new collection of objects, or null if removed.</param>
-  private void TrackChildObjectCollection(string name, object? value)
-  {
-    // Get original collection of nested objects
-    object? old = _state[name];
-
-    // Collection added
-    if (old == null && value != null)
-    {
-      _changes[name] = value;
-      return;
-    }
-
-    // Collection removed
-    if (old != null && value == null)
-    {
-      _changes[name] = null;
-      _childObjectCollections.Remove(name);
-      return;
-    }
-
-    // Existing collection updated → deep tracking for nested items
-    if (value is IEnumerable e)
-      _childObjectCollections[name].TrackChanges(e.Cast<object>());
+      _collections[name].TrackChanges(e);
   }
 
   /// <summary>
@@ -287,16 +252,10 @@ internal abstract class TrackedNodeBase<T> where T : class
       .Where(v => v.Value.IsModified)
       .Select(v => v.Value.GetUpdateDefinition(fullName, v.Key));
 
-    // Generate updates for collections of child objects
-    IEnumerable<UpdateDefinition<T>?> childObjectCollectionUpdates = _childObjectCollections
-      .Where(v => v.Value.IsModified)
-      .Select(v => v.Value.GetUpdateDefinition(fullName, v.Key));
-
     // Combine all update definitions into a single MongoDB update document
     IEnumerable<UpdateDefinition<T>?> updates = propertyUpdates
       .Union(childObjectUpdates)
-      .Union(collectionUpdates)
-      .Union(childObjectCollectionUpdates);
+      .Union(collectionUpdates);
 
     // If a version field is configured, update it with the current date/time
     if (_entityConfig?.VersionPropertyName != null)
@@ -325,7 +284,7 @@ internal abstract class TrackedNodeBase<T> where T : class
   /// </summary>
   /// <param name="entity">The entity instance whose properties should be tracked.</param>
   /// <param name="config">The tracking configuration describing how each property should be treated.</param>
-  protected TrackedNodeBase(object entity, IReadOnlyDictionary<Type, EntityBuilder> config)
+  protected ChangeTrackerBase(object entity, IReadOnlyDictionary<Type, EntityBuilder> config)
   {
     // Find configuration for the entity's exact type
     _entityConfig = config.GetValueOrDefault(entity.GetType());
@@ -353,21 +312,31 @@ internal abstract class TrackedNodeBase<T> where T : class
       _state[property.Name] = value;
 
       // Initialize nested tracked object
-      if (propConfig?.Kind == PropertyKind.TrackedObject && value != null)
-        _childObjects[property.Name] = new TrackedChildObject<T>(value, config);
+      if (propConfig?.Kind == PropertyKind.Child && value != null)
+        _childObjects[property.Name] = new ChildTracker<T>(value, config);
 
-      // Initialize tracked collection of primitive/value types
-      else if (propConfig?.Kind == PropertyKind.Collection && value is IEnumerable enumerable)
+      // Initialize collection tracked object
+      else if (value is IEnumerable enumerable)
       {
-        Type elementType = property.PropertyType.GetGenericArguments()[0];
-        _collections[property.Name] = new TrackedCollection<T>(enumerable, elementType);
-      }
+        Type[] geneticArguments = property.PropertyType.GetGenericArguments();
 
-      // Initialize tracked collection of nested objects
-      else if (propConfig?.Kind == PropertyKind.TrackedObjectCollection && value is IEnumerable col)
-      {
+        if (geneticArguments.Length == 0)
+          continue;
+
         Type elementType = property.PropertyType.GetGenericArguments()[0];
-        _childObjectCollections[property.Name] = new TrackedChildObjectCollection<T>(col, elementType, config);
+
+        CollectionTrackerBase<T>? collection = propConfig?.Kind switch
+        {
+          PropertyKind.Set => new ValueSetTracker<T>(enumerable, elementType),
+          PropertyKind.TrackedSet => new ChildSetTracker<T>(enumerable, elementType, config),
+          PropertyKind.Collection => new ValueCollectionTracker<T>(enumerable, elementType),
+          _ => null
+        };
+
+        if (collection == null)
+          continue;
+
+        _collections[property.Name] = collection;
       }
     }
   }

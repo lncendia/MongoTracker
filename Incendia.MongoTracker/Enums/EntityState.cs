@@ -1,4 +1,4 @@
-namespace Incendia.MongoTracker.Entities;
+namespace Incendia.MongoTracker.Enums;
 
 /// <summary>
 /// Enumeration representing the state of an entity.

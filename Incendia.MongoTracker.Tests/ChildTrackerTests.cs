@@ -3,13 +3,14 @@ using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Incendia.MongoTracker.Builders;
-using Incendia.MongoTracker.Entities;
+using Incendia.MongoTracker.Entities.Nodes;
+using Incendia.MongoTracker.Enums;
 
 // ReSharper disable InconsistentNaming
 
 namespace Incendia.MongoTracker.Tests;
 
-public partial class TrackedChildObjectTests
+public partial class ChildTrackerTests
 {
   private ModelBuilder _builder = null!;
 
@@ -37,9 +38,9 @@ public partial class TrackedChildObjectTests
     _builder.Entity<TestEntity>(b =>
     {
       b.Property(e => e.Id).IsIdentifier();
-      b.Property(e => e.Child).IsTrackedObject();
+      b.Property(e => e.Child).IsChild();
     });
-    _builder.Entity<ChildTestEntity>(b => b.Property(e => e.Child).IsTrackedObject());
+    _builder.Entity<ChildTestEntity>(b => b.Property(e => e.Child).IsChild());
   }
 
   /// <summary>
@@ -54,7 +55,7 @@ public partial class TrackedChildObjectTests
       Id = 1,
       Name = "Egor"
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Child = new ChildTestEntity { Name = "Anton" };
@@ -64,11 +65,11 @@ public partial class TrackedChildObjectTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json, Is.EqualTo(SetChildObject_OnRootEntity_GeneratesCorrectSetUpdateEtalonJson));
-    });
+    }
   }
 
   /// <summary>
@@ -87,7 +88,7 @@ public partial class TrackedChildObjectTests
         Name = "Anton"
       }
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Child.Name = "Alex";
@@ -97,12 +98,12 @@ public partial class TrackedChildObjectTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json,
         Is.EqualTo(ModifyChildObjectProperty_OnExistingChild_GeneratesCorrectDottedPathUpdateEtalonJson));
-    });
+    }
   }
 
   /// <summary>
@@ -121,7 +122,7 @@ public partial class TrackedChildObjectTests
         Name = "Anton"
       }
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Child = new ChildTestEntity { Name = "Alex" };
@@ -131,12 +132,12 @@ public partial class TrackedChildObjectTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json,
         Is.EqualTo(ModifyChildObjectProperty_OnExistingChild_GeneratesCorrectDottedPathUpdateEtalonJson));
-    });
+    }
   }
 
   /// <summary>
@@ -155,7 +156,7 @@ public partial class TrackedChildObjectTests
         Name = "Anton"
       }
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Child.Child = new ChildTestEntity { Name = "Alex" };
@@ -165,11 +166,11 @@ public partial class TrackedChildObjectTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json, Is.EqualTo(SetChildObject_OnExistingChild_GeneratesCorrectNestedUpdateEtalonJson));
-    });
+    }
   }
 
   /// <summary>
@@ -192,7 +193,7 @@ public partial class TrackedChildObjectTests
         }
       }
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Child.Child.Name = "Max";
@@ -202,10 +203,10 @@ public partial class TrackedChildObjectTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json, Is.EqualTo(ModifyProperty_OnNestedChildObject_GeneratesCorrectDeepPathUpdateEtalonJson));
-    });
+    }
   }
 }

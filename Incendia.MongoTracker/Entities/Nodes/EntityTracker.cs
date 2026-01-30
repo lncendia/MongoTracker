@@ -1,14 +1,16 @@
 ﻿using Incendia.MongoTracker.Builders;
+using Incendia.MongoTracker.Entities.Base;
+using Incendia.MongoTracker.Enums;
 
 using MongoDB.Driver;
 
-namespace Incendia.MongoTracker.Entities;
+namespace Incendia.MongoTracker.Entities.Nodes;
 
 /// <summary>
 /// Represents a top-level tracked entity.
 /// </summary>
 /// <typeparam name="T">The type of the entity being tracked.</typeparam>
-internal class TrackedEntity<T> : TrackedNodeBase<T> where T : class
+internal class EntityTracker<T> : ChangeTrackerBase<T> where T : class
 {
   #region Properties
 
@@ -64,7 +66,7 @@ internal class TrackedEntity<T> : TrackedNodeBase<T> where T : class
   /// </summary>
   /// <param name="entity">The entity instance to be tracked.</param>
   /// <param name="config">The configuration that describes which properties should be tracked and how.</param>
-  public TrackedEntity(T entity, IReadOnlyDictionary<Type, EntityBuilder> config) : base(entity, config)
+  public EntityTracker(T entity, IReadOnlyDictionary<Type, EntityBuilder> config) : base(entity, config)
   {
   }
 

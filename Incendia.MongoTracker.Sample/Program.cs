@@ -9,6 +9,17 @@ using Incendia.MongoTracker.Sample.Entities.Authors;
 using Incendia.MongoTracker.Sample.Entities.Books;
 using Incendia.MongoTracker.Tracker;
 
+int[] x = [5, 7];
+int[] y = [7, 5];
+
+// foreach (int i in x.Except(y))
+// {
+  // Console.WriteLine(i);
+// }
+
+  Console.WriteLine(x.SequenceEqual(y));
+
+return;
 // Register Guid serializer to use standard representation (GuidRepresentation.Standard)
 BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
 
@@ -213,9 +224,9 @@ ModelBuilder Configure()
   builder.Entity<Book>(e =>
   {
     e.Property(b => b.Id).IsIdentifier();
-    e.Property(b => b.Audiobook).IsTrackedObject();
-    e.Property(b => b.Authors).IsCollection();
-    e.Property(b => b.Chapters).IsTrackedObjectCollection();
+    e.Property(b => b.Audiobook).IsChild();
+    e.Property(b => b.Authors).IsSet();
+    e.Property(b => b.Chapters).IsTrackedSet();
     e.Property(b => b.LastUpdate).IsVersion();
   });
 
@@ -225,7 +236,7 @@ ModelBuilder Configure()
   });
 
   // Configure the BookChapter entity
-  builder.Entity<BookChapter>(e => { e.Property(c => c.Footnotes).IsCollection(); });
+  builder.Entity<BookChapter>(e => { e.Property(c => c.Footnotes).IsSet(); });
 
   // Return the configured builder
   return builder;

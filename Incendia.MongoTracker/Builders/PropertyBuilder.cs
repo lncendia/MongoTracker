@@ -1,5 +1,7 @@
 ﻿using System.Collections;
 
+using Incendia.MongoTracker.Enums;
+
 namespace Incendia.MongoTracker.Builders;
 
 /// <summary>
@@ -24,12 +26,40 @@ public class PropertyBuilder(PropertyConfig config)
   }
 
   /// <summary>
-  /// Marks the property as a tracked object
+  /// Marks the property as a child object
   /// </summary>
   /// <returns>The property builder for fluent configuration</returns>
-  public PropertyBuilder IsTrackedObject()
+  public PropertyBuilder IsChild()
   {
-    Config.Kind = PropertyKind.TrackedObject;
+    Config.Kind = PropertyKind.Child;
+    return this;
+  }
+
+  /// <summary>
+  /// Marks the property as a set
+  /// </summary>
+  /// <returns>The property builder for fluent configuration</returns>
+  public PropertyBuilder IsSet()
+  {
+    if (!typeof(IEnumerable).IsAssignableFrom(Config.Type))
+      throw new InvalidOperationException(
+        $"Property '{Config.Name}' is configured as set but does not implement IEnumerable.");
+
+    Config.Kind = PropertyKind.Set;
+    return this;
+  }
+
+  /// <summary>
+  /// Marks the property as a set of tracked objects
+  /// </summary>
+  /// <returns>The property builder for fluent configuration</returns>
+  public PropertyBuilder IsTrackedSet()
+  {
+    if (!typeof(IEnumerable).IsAssignableFrom(Config.Type))
+      throw new InvalidOperationException(
+        $"Property '{Config.Name}' is configured as tracked set but does not implement IEnumerable.");
+
+    Config.Kind = PropertyKind.TrackedSet;
     return this;
   }
 
@@ -41,23 +71,9 @@ public class PropertyBuilder(PropertyConfig config)
   {
     if (!typeof(IEnumerable).IsAssignableFrom(Config.Type))
       throw new InvalidOperationException(
-        $"Property '{Config.Name}' is configured as Collection but does not implement IEnumerable.");
+        $"Property '{Config.Name}' is configured as collection but does not implement IEnumerable.");
 
     Config.Kind = PropertyKind.Collection;
-    return this;
-  }
-
-  /// <summary>
-  /// Marks the property as a collection of tracked objects
-  /// </summary>
-  /// <returns>The property builder for fluent configuration</returns>
-  public PropertyBuilder IsTrackedObjectCollection()
-  {
-    if (!typeof(IEnumerable).IsAssignableFrom(Config.Type))
-      throw new InvalidOperationException(
-        $"Property '{Config.Name}' is configured as TrackedObjectCollection but does not implement IEnumerable.");
-
-    Config.Kind = PropertyKind.TrackedObjectCollection;
     return this;
   }
 

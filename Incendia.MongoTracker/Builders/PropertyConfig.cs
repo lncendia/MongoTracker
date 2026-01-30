@@ -1,4 +1,6 @@
-﻿namespace Incendia.MongoTracker.Builders;
+﻿using Incendia.MongoTracker.Enums;
+
+namespace Incendia.MongoTracker.Builders;
 
 /// <summary>
 /// Configuration settings for a property

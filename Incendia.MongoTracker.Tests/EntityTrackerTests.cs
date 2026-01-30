@@ -3,13 +3,14 @@ using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Incendia.MongoTracker.Builders;
-using Incendia.MongoTracker.Entities;
+using Incendia.MongoTracker.Entities.Nodes;
+using Incendia.MongoTracker.Enums;
 
 // ReSharper disable InconsistentNaming
 
 namespace Incendia.MongoTracker.Tests;
 
-public partial class TrackedEntityTests
+public partial class EntityTrackerTests
 {
   private ModelBuilder _builder = null!;
 
@@ -46,7 +47,7 @@ public partial class TrackedEntityTests
       Age = 22,
       Money = null
     };
-    var trackedEntity = new TrackedEntity<TestEntity>(entity, _builder.Entities);
+    var trackedEntity = new EntityTracker<TestEntity>(entity, _builder.Entities);
 
     // Act
     entity.Name = null;
@@ -58,10 +59,10 @@ public partial class TrackedEntityTests
     BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
-    Assert.Multiple(() =>
+    using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json, Is.EqualTo(UpdateProperties_WithNullAndNullableValues_GeneratesCorrectSetUpdateEtalonJson));
-    });
+    }
   }
 }

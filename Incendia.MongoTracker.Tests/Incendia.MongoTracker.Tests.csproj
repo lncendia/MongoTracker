@@ -9,10 +9,13 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4"/>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.0"/>
-    <PackageReference Include="NUnit" Version="4.3.2"/>
-    <PackageReference Include="NUnit.Analyzers" Version="4.7.0"/>
-    <PackageReference Include="NUnit3TestAdapter" Version="5.0.0"/>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+    <PackageReference Include="NUnit" Version="4.4.0" />
+    <PackageReference Include="NUnit.Analyzers" Version="4.11.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="NUnit3TestAdapter" Version="6.1.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,22 +23,25 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="TrackedChildObjectTestsEntities.cs">
-      <DependentUpon>TrackedChildObjectTests.cs</DependentUpon>
-    </Compile>
-    <Compile Update="TrackedEntityTestsEntities.cs">
-      <DependentUpon>TrackedEntityTests.cs</DependentUpon>
-    </Compile>
-    <Compile Update="TrackedCollectionTestsEntities.cs">
-      <DependentUpon>TrackedCollectionTests.cs</DependentUpon>
-    </Compile>
-    <Compile Update="TrackedChildObjectCollectionTestsEntities.cs">
-      <DependentUpon>TrackedChildObjectCollectionTests.cs</DependentUpon>
-    </Compile>
+    <ProjectReference Include="..\Incendia.MongoTracker\Incendia.MongoTracker.csproj"/>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Incendia.MongoTracker\Incendia.MongoTracker.csproj"/>
+    <Compile Update="ChildSetTrackerTestsEntities.cs">
+      <DependentUpon>ChildSetTrackerTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="ChildTrackerTestsEntities.cs">
+      <DependentUpon>ChildTrackerTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="EntityTrackerTestsEntities.cs">
+      <DependentUpon>EntityTrackerTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="ValueCollectionTrackerTestsEntities.cs">
+      <DependentUpon>ValueCollectionTrackerTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="ValueSetTrackerTestsEntities.cs">
+      <DependentUpon>ValueSetTrackerTests.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>
