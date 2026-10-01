@@ -40,7 +40,8 @@ internal class ValueCollectionTracker<T> : CollectionTrackerBase<T> where T : cl
   }
 
   /// <inheritdoc/>
-  public override UpdateDefinition<T>? GetUpdateDefinition(string? parentPropertyName, string propertyName)
+  public override UpdateDefinition<T>? GetUpdateDefinition(string? parentPropertyName, string propertyName,
+    UpdateContext context)
   {
     if (_sequenceEqual) return null;
 

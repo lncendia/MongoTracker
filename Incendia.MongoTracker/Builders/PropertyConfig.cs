@@ -20,7 +20,7 @@ public class PropertyConfig(string propName, Type propType)
   public Type Type { get; } = propType;
 
   /// <summary>
-  /// Gets or sets the kind/type of the property
+  /// Gets or sets the kind/type of the property. <c>null</c> means a plain tracked property.
   /// </summary>
-  public PropertyKind Kind { get; set; }
+  public PropertyKind? Kind { get; set; }
 }

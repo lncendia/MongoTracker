@@ -19,7 +19,7 @@ public partial class EntityTrackerTests
     BsonSerializer.SerializerRegistry);
 
   private const string UpdateProperties_WithNullAndNullableValues_GeneratesCorrectSetUpdateEtalonJson =
-    "{ \"$set\" : { \"Name\" : null, \"Age\" : null, \"Money\" : { \"$numberDecimal\" : \"5000\" } }, \"$currentDate\" : { \"LastUpdated\" : { \"$type\" : \"date\" } } }";
+    "{ \"$set\" : { \"Name\" : null, \"Age\" : null, \"Money\" : { \"$numberDecimal\" : \"5000\" } } }";
 
   [OneTimeSetUp]
   public void Initialize()
@@ -56,13 +56,18 @@ public partial class EntityTrackerTests
     trackedEntity.TrackChanges(entity);
 
     // Assert
-    BsonValue? rendered = trackedEntity.UpdateDefinition.Render(_renderArgs);
+    BsonDocument rendered = trackedEntity.UpdateDefinition.Render(_renderArgs).AsBsonDocument;
+
+    // The version value is generated at render time, so check it separately from the etalon
+    BsonValue version = rendered["$set"]["LastUpdated"];
+    rendered["$set"].AsBsonDocument.Remove("LastUpdated");
     string? json = rendered.ToJson(new JsonWriterSettings { OutputMode = JsonOutputMode.RelaxedExtendedJson });
 
     using (Assert.EnterMultipleScope())
     {
       Assert.That(trackedEntity.EntityState, Is.EqualTo(EntityState.Modified));
       Assert.That(json, Is.EqualTo(UpdateProperties_WithNullAndNullableValues_GeneratesCorrectSetUpdateEtalonJson));
+      Assert.That(version.IsValidDateTime, Is.True);
     }
   }
 }

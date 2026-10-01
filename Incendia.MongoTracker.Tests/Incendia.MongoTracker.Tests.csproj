@@ -27,6 +27,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Update="NestedKeyedSetMongoTestsEntities.cs">
+      <DependentUpon>NestedKeyedSetMongoTests.cs</DependentUpon>
+    </Compile>
     <Compile Update="ChildSetTrackerTestsEntities.cs">
       <DependentUpon>ChildSetTrackerTests.cs</DependentUpon>
     </Compile>
@@ -41,6 +44,21 @@
     </Compile>
     <Compile Update="ValueSetTrackerTestsEntities.cs">
       <DependentUpon>ValueSetTrackerTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="MongoTrackerTestsEntities.cs">
+      <DependentUpon>MongoTrackerTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="KeyedChildSetTrackerTestsEntities.cs">
+      <DependentUpon>KeyedChildSetTrackerTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="TypeMetadataTestsEntities.cs">
+      <DependentUpon>TypeMetadataTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="ElementNameTestsEntities.cs">
+      <DependentUpon>ElementNameTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UtilsTestsEntities.cs">
+      <DependentUpon>UtilsTests.cs</DependentUpon>
     </Compile>
   </ItemGroup>
 

@@ -15,7 +15,8 @@ internal class ValueSetTracker<T> : SetTrackerBase<T> where T : class
   #region Methods
 
   /// <inheritdoc/>
-  public override UpdateDefinition<T>? GetUpdateDefinition(string? parentPropertyName, string propertyName)
+  public override UpdateDefinition<T>? GetUpdateDefinition(string? parentPropertyName, string propertyName,
+    UpdateContext context)
   {
     // Form the full property name (including parent properties)
     string? setFullName = Utils.CombineName(parentPropertyName, propertyName);

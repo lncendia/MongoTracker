@@ -78,14 +78,17 @@ public class PropertyBuilder(PropertyConfig config)
   }
 
   /// <summary>
-  /// Marks the property as a version field for optimistic concurrency control
+  /// Marks the property as a version field for optimistic concurrency control.
+  /// Integer versions are incremented on every update, DateTime versions receive the current UTC time.
   /// </summary>
   /// <returns>The property builder for fluent configuration</returns>
   public PropertyBuilder IsVersion()
   {
-    if (Config.Type != typeof(DateTime) && Config.Type != typeof(DateTime?))
+    Type type = Nullable.GetUnderlyingType(Config.Type) ?? Config.Type;
+
+    if (type != typeof(DateTime) && type != typeof(int) && type != typeof(long))
       throw new InvalidOperationException(
-        $"Property '{Config.Name}' must be of type DateTime to be used as a version field.");
+        $"Property '{Config.Name}' must be of type DateTime, int or long to be used as a version field.");
 
     Config.Kind = PropertyKind.Version;
     return this;

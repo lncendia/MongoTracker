@@ -48,9 +48,28 @@ internal abstract class SetTrackerBase<T> : CollectionTrackerBase<T> where T : c
   public override void TrackChanges(IEnumerable updatedSet)
   {
     base.TrackChanges(updatedSet);
-    AddedItems = Collection.Except(OriginalCollection).ToList();
-    RemovedItems = OriginalCollection.Except(Collection).ToList();
+    AddedItems = Except(Collection, OriginalCollection);
+    RemovedItems = Except(OriginalCollection, Collection);
   }
+
+  /// <summary>
+  /// Returns the distinct items of the source whose identity is not present in the other sequence.
+  /// </summary>
+  /// <param name="source">Items to filter.</param>
+  /// <param name="other">Items whose identities are excluded.</param>
+  /// <returns>Items of <paramref name="source"/> missing from <paramref name="other"/>.</returns>
+  private List<object> Except(IEnumerable<object> source, IEnumerable<object> other)
+  {
+    var seen = new HashSet<object>(other.Select(GetKey));
+    return source.Where(item => seen.Add(GetKey(item))).ToList();
+  }
+
+  /// <summary>
+  /// Returns the value that identifies an item of the set. By default the item itself is its identity.
+  /// </summary>
+  /// <param name="item">The set item.</param>
+  /// <returns>The identity of the item.</returns>
+  protected virtual object GetKey(object item) => item;
 
   #endregion
 

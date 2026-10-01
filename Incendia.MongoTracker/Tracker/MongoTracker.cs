@@ -3,6 +3,7 @@
 using Incendia.MongoTracker.Builders;
 using Incendia.MongoTracker.Entities.Nodes;
 using Incendia.MongoTracker.Enums;
+using Incendia.MongoTracker.Exceptions;
 
 using MongoDB.Driver;
 
@@ -44,6 +45,16 @@ public class MongoTracker<T> where T : class
   /// Model configuration used for tracking and versioning
   /// </summary>
   private readonly ModelBuilder _modelBuilder;
+
+  /// <summary>
+  /// IDs of entities included as deletions in the last commit, pending until the write is accepted
+  /// </summary>
+  private readonly List<object> _pendingDeleted = [];
+
+  /// <summary>
+  /// IDs of entities included as updates in the last commit, pending until the write is accepted
+  /// </summary>
+  private readonly List<object> _pendingModified = [];
 
   #endregion
 
@@ -116,15 +127,19 @@ public class MongoTracker<T> where T : class
   /// <returns>Collection of WriteModels for BulkWrite().</returns>
   protected virtual IReadOnlyCollection<WriteModel<T>> Commit()
   {
+    // Forget the results of a previous commit that was never accepted
+    _pendingDeleted.Clear();
+    _pendingModified.Clear();
+
     // All entities that should be deleted
     object[] deleted = _tracked
       .Where(s => s.Value.EntityState == EntityState.Deleted)
       .Select(v => v.Key)
       .ToArray();
 
-    // Entities that may have been modified
+    // Entities that may have been modified (including ones already detected as modified by a failed save)
     object[] probablyModified = _tracked
-      .Where(s => s.Value.EntityState == EntityState.Default)
+      .Where(s => s.Value.EntityState != EntityState.Deleted)
       .Select(v => v.Key)
       .ToArray();
 
@@ -162,10 +177,7 @@ public class MongoTracker<T> where T : class
       }
 
       bulkOperations.Add(new DeleteOneModel<T>(filter));
-
-      // Reset tracker state for model
-      _tracked.Remove(id);
-      _objects.Remove(id);
+      _pendingDeleted.Add(id);
     }
 
     // UPDATE operations
@@ -200,10 +212,8 @@ public class MongoTracker<T> where T : class
       }
 
       // Register UPDATE operation
-      bulkOperations.Add(new UpdateOneModel<T>(filter, tracked.UpdateDefinition));
-
-      // Reset tracker state for model
-      _tracked[id] = new EntityTracker<T>(entity, _modelBuilder.Entities);
+      bulkOperations.Add(tracked.CreateUpdateModel(filter));
+      _pendingModified.Add(id);
     }
 
     // Return prepared MongoDB operations
@@ -229,7 +239,7 @@ public class MongoTracker<T> where T : class
       ? collection.BulkWrite(requests, options, cancellationToken)
       : collection.BulkWrite(session, requests, options, cancellationToken);
 
-    TrackAddedIfAcknowledged(result);
+    AcceptChanges(result);
     return result;
   }
 
@@ -253,7 +263,7 @@ public class MongoTracker<T> where T : class
       ? await collection.BulkWriteAsync(requests, options, cancellationToken)
       : await collection.BulkWriteAsync(session, requests, options, cancellationToken);
 
-    TrackAddedIfAcknowledged(result);
+    AcceptChanges(result);
 
     return result;
   }
@@ -285,11 +295,38 @@ public class MongoTracker<T> where T : class
   }
 
   /// <summary>
-  /// Finalizes adding entities after a successful write operation.
+  /// Verifies the write result and accepts the committed changes into the tracker state.
   /// </summary>
-  /// <param name="result"> The result of the write operation.</param>
-  private void TrackAddedIfAcknowledged(BulkWriteResult<T> result)
+  /// <param name="result">The result of the write operation.</param>
+  /// <exception cref="MongoConcurrencyException">
+  /// Thrown when fewer documents were updated or deleted than expected. Changes are not accepted in that case.
+  /// </exception>
+  private void AcceptChanges(BulkWriteResult<T> result)
   {
+    // Unacknowledged writes carry no counts, so the conflict check is only possible for acknowledged ones
+    if (result.IsAcknowledged
+        && (result.MatchedCount < _pendingModified.Count || result.DeletedCount < _pendingDeleted.Count))
+    {
+      throw new MongoConcurrencyException(_pendingModified.Count, result.MatchedCount,
+        _pendingDeleted.Count, result.DeletedCount);
+    }
+
+    // Stop tracking deleted entities
+    foreach (object id in _pendingDeleted)
+    {
+      _tracked.Remove(id);
+      _objects.Remove(id);
+    }
+
+    // Write new versions into updated entities and take a fresh snapshot of them
+    foreach (object id in _pendingModified)
+    {
+      T entity = _objects[id];
+      _tracked[id].AcceptVersions();
+      _tracked[id] = new EntityTracker<T>(entity, _modelBuilder.Entities);
+    }
+
+    // Start tracking inserted entities
     if (result.IsAcknowledged)
     {
       foreach (T added in _added)
@@ -299,6 +336,8 @@ public class MongoTracker<T> where T : class
     }
 
     _added.Clear();
+    _pendingDeleted.Clear();
+    _pendingModified.Clear();
   }
 
   #endregion

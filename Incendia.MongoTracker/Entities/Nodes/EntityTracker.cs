@@ -29,22 +29,44 @@ internal class EntityTracker<T> : ChangeTrackerBase<T> where T : class
   /// <exception cref="InvalidOperationException">
   /// Thrown when attempting to access the update definition while the entity is not modified.
   /// </exception>
-  public UpdateDefinition<T> UpdateDefinition
-  {
-    get
-    {
-      // Ensure the entity is marked as modified before generating the update
-      if (EntityState != EntityState.Modified)
-        throw new InvalidOperationException("Entity is not modified");
-
-      // Build and return the full MongoDB update definition
-      return GetUpdateDefinition(null, null);
-    }
-  }
+  public UpdateDefinition<T> UpdateDefinition => BuildUpdateDefinition(new UpdateContext());
 
   #endregion
 
   #region Methods
+
+  /// <summary>
+  /// Creates a MongoDB update operation representing all changes detected in the entity.
+  /// </summary>
+  /// <param name="filter">The filter selecting the document to update.</param>
+  /// <returns>The update operation, including the array filters its update refers to.</returns>
+  /// <exception cref="InvalidOperationException">Thrown when the entity is not modified.</exception>
+  public UpdateOneModel<T> CreateUpdateModel(FilterDefinition<T> filter)
+  {
+    var context = new UpdateContext();
+    var model = new UpdateOneModel<T>(filter, BuildUpdateDefinition(context));
+
+    if (context.ArrayFilters.Count > 0)
+      model.ArrayFilters = context.ArrayFilters;
+
+    return model;
+  }
+
+  /// <summary>
+  /// Builds the update definition of the entity, registering the array filters it refers to in the context.
+  /// </summary>
+  /// <param name="context">Shared state of the update being built.</param>
+  /// <returns>The full MongoDB update definition.</returns>
+  /// <exception cref="InvalidOperationException">Thrown when the entity is not modified.</exception>
+  private UpdateDefinition<T> BuildUpdateDefinition(UpdateContext context)
+  {
+    // Ensure the entity is marked as modified before generating the update
+    if (EntityState != EntityState.Modified)
+      throw new InvalidOperationException("Entity is not modified");
+
+    // Build and return the full MongoDB update definition
+    return GetUpdateDefinition(null, null, context);
+  }
 
   /// <summary>
   /// Determines the effective entity state based on the provided state and the modification status.

@@ -5,6 +5,8 @@ using System.Reflection;
 
 using Incendia.MongoTracker.Builders;
 
+using MongoDB.Bson;
+using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -20,6 +22,16 @@ internal static class Utils
   /// reflection and class map lookups.
   /// </summary>
   private static readonly ConcurrentDictionary<string, bool> _bsonIgnoreCache = new();
+
+  /// <summary>
+  /// Caches how members are serialized, keyed by the declaring type and the member name.
+  /// </summary>
+  private static readonly ConcurrentDictionary<(Type, string), BsonSerializationInfo> _serializationInfoCache = new();
+
+  /// <summary>
+  /// Caches constructed <see cref="List{T}"/> types by element type.
+  /// </summary>
+  private static readonly ConcurrentDictionary<Type, Type> _listTypeCache = new();
 
   /// <summary>
   /// Combines parent property name and current property name to form a MongoDB path.
@@ -85,7 +97,7 @@ internal static class Utils
     /// <returns>A typed <see cref="List{T}"/> containing all items from <paramref name="source"/>.</returns>
     public object ToTypedList(Type elementType)
     {
-      Type listType = typeof(List<>).MakeGenericType(elementType);
+      Type listType = _listTypeCache.GetOrAdd(elementType, t => typeof(List<>).MakeGenericType(t));
       var list = (IList)Activator.CreateInstance(listType, args: source.Count);
 
       foreach (object? item in source)
@@ -113,7 +125,7 @@ internal static class Utils
         if (BsonClassMap.IsClassMapRegistered(property.DeclaringType))
         {
           var classMap = BsonClassMap.LookupClassMap(property.DeclaringType);
-          return classMap.AllMemberMaps.All(m => property.IsSameProperty(m.MemberInfo));
+          return !classMap.AllMemberMaps.Any(m => property.IsSameProperty(m.MemberInfo));
         }
 
         // 2. Fallback to attribute-based ignore
@@ -132,6 +144,77 @@ internal static class Utils
     {
       return property.DeclaringType == b.DeclaringType && property.Name == b.Name;
     }
+  }
+
+  /// <summary>
+  /// Generates the next value of a version field based on its current value.
+  /// </summary>
+  /// <param name="current">Current version value (may be null).</param>
+  /// <param name="type">Declared type of the version property.</param>
+  /// <returns>The next version value.</returns>
+  /// <exception cref="InvalidOperationException">Thrown when the version type is not supported.</exception>
+  public static object NextVersion(object? current, Type type)
+  {
+    Type underlying = Nullable.GetUnderlyingType(type) ?? type;
+
+    if (underlying == typeof(int)) return (current as int? ?? 0) + 1;
+    if (underlying == typeof(long)) return (current as long? ?? 0L) + 1L;
+
+    if (underlying == typeof(DateTime))
+    {
+      // MongoDB stores dates with millisecond precision, so truncate to keep equality filters working
+      DateTime now = DateTime.UtcNow;
+      now = new DateTime(now.Ticks - now.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
+
+      // Guarantee the version always moves forward, even within the same millisecond or on clock skew
+      if (current is DateTime previous && now <= previous.ToUniversalTime())
+        now = previous.ToUniversalTime().AddMilliseconds(1);
+
+      return now;
+    }
+
+    throw new InvalidOperationException($"Type '{type.Name}' is not supported as a version field.");
+  }
+
+  /// <summary>
+  /// Resolves how a member of the type is stored in BSON, according to the registered serializer (class map).
+  /// </summary>
+  /// <param name="type">The type that declares the member.</param>
+  /// <param name="memberName">The name of the member.</param>
+  /// <returns>The BSON element name and the serializer of the member.</returns>
+  /// <exception cref="InvalidOperationException">Thrown when the serializer of the type does not expose the member.</exception>
+  public static BsonSerializationInfo GetSerializationInfo(Type type, string memberName)
+  {
+    return _serializationInfoCache.GetOrAdd((type, memberName), key =>
+    {
+      if (BsonSerializer.LookupSerializer(key.Item1) is IBsonDocumentSerializer serializer
+          && serializer.TryGetMemberSerializationInfo(key.Item2, out BsonSerializationInfo? info))
+        return info;
+
+      throw new InvalidOperationException($"Unable to resolve how '{key.Item1.Name}.{key.Item2}' is serialized.");
+    });
+  }
+
+  /// <summary>
+  /// Serializes a single value into a <see cref="BsonValue"/> using the specified serializer.
+  /// </summary>
+  /// <param name="serializer">The serializer of the value.</param>
+  /// <param name="value">The value to serialize.</param>
+  /// <returns>The serialized value.</returns>
+  public static BsonValue SerializeValue(IBsonSerializer serializer, object? value)
+  {
+    var document = new BsonDocument();
+
+    // Serializers can only write inside a document, so wrap the value into a temporary element
+    using (var writer = new BsonDocumentWriter(document))
+    {
+      writer.WriteStartDocument();
+      writer.WriteName("v");
+      serializer.Serialize(BsonSerializationContext.CreateRoot(writer), value);
+      writer.WriteEndDocument();
+    }
+
+    return document["v"];
   }
 
   /// <summary>
