@@ -1,0 +1,53 @@
+name: Publish
+
+# Publishes Incendia.MongoTracker to nuget.org when a version tag is pushed, e.g. v3.0.0 or v3.1.0-preview.1.
+# Uses Trusted Publishing: nuget.org exchanges the GitHub OIDC token for a short-lived API key,
+# so no long-lived API key is stored in the repository secrets.
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # lets the job request a GitHub OIDC token for nuget.org
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The package version is taken from the tag, so the tag and the published version always match
+      - name: Read version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: dotnet build MongoTracker.sln -c Release -p:Version=$VERSION
+
+      - name: Unit tests
+        run: dotnet test Incendia.MongoTracker.Tests -c Release --no-build
+
+      - name: Integration tests
+        run: dotnet test Incendia.MongoTracker.IntegrationTests -c Release --no-build
+
+      - name: Pack
+        run: >
+          dotnet pack Incendia.MongoTracker -c Release -o artifacts
+          -p:Version=$VERSION -p:ContinuousIntegrationBuild=true
+
+      # Requested right before the push: the temporary key is valid for one hour
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to nuget.org
+        run: >
+          dotnet nuget push "artifacts/Incendia.MongoTracker.$VERSION.nupkg"
+          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json

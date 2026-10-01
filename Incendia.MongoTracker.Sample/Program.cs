@@ -9,17 +9,6 @@ using Incendia.MongoTracker.Sample.Entities.Authors;
 using Incendia.MongoTracker.Sample.Entities.Books;
 using Incendia.MongoTracker.Tracker;
 
-int[] x = [5, 7];
-int[] y = [7, 5];
-
-// foreach (int i in x.Except(y))
-// {
-  // Console.WriteLine(i);
-// }
-
-  Console.WriteLine(x.SequenceEqual(y));
-
-return;
 // Register Guid serializer to use standard representation (GuidRepresentation.Standard)
 BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
 
@@ -125,9 +114,9 @@ tracker.Delete(harryPotter);
 //    db.Books.deleteOne({ _id: UUID("..."), LastModified: ISODate("...") })
 
 // Apply all changes (inserts, updates, deletes) to database
-BulkWriteResult<Book> result = await tracker.SaveChangesAsync(context.Books);
+BulkWriteResult<Book>? result = await tracker.SaveChangesAsync(context.Books);
 
-Console.WriteLine($"Modified: {result.ModifiedCount}, Deleted: {result.DeletedCount}");
+Console.WriteLine($"Modified: {result!.ModifiedCount}, Deleted: {result.DeletedCount}");
 
 // Exit program
 return;

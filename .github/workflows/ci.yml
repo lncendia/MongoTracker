@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet build MongoTracker.sln -c Release
+
+      - name: Unit tests
+        run: dotnet test Incendia.MongoTracker.Tests -c Release --no-build
+
+      # Testcontainers starts MongoDB in Docker, which is available on GitHub-hosted Ubuntu runners
+      - name: Integration tests
+        run: dotnet test Incendia.MongoTracker.IntegrationTests -c Release --no-build
